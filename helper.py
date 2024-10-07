@@ -28,3 +28,42 @@ def is_point_oob(x, y) -> bool:
     if y < 0 or y > 7:
         return True
     return False
+
+
+# Variables and Constants
+file_names = [
+    "layout_standard.csv",
+    "layout_no_pawns.csv",
+    "layout_king_checked.csv",
+]
+
+
+def get_layout(file_name) -> list[list[str]]:
+    layout = []
+    with open(file_name) as csv_file:
+        for s in csv_file.readlines():
+            s = s.strip()
+            l = s.split(",")
+            layout.append(l)
+    return layout
+
+
+def fill_board(b: Board, layout):
+    colors = {"b": "Black", "w": "White"}
+    piece_map = {
+        "p": "Pawn",
+        "r": "Rook",
+        "n": "Knight",
+        "b": "Bishop",
+        "q": "Queen",
+        "k": "King",
+    }
+    for y, row in enumerate(layout):
+        for x, item in enumerate(row):
+            if not item:
+                continue
+            type = piece_map[item[0].lower()]
+            color = colors[item[-1].lower()]
+
+            p = Piece(type, color)
+            b.set_item(p, x, y)
