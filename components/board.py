@@ -1,65 +1,100 @@
-from pieces import Piece
-
-from my_types import Vector, Point
-
-ChessFile = list[Piece | None]
+from colors import Colors
 
 
 class Board:
-    white_square = "◼"
-    black_square = "◻"
+    SIZE = 8
 
-    def __init__(self):
-        self.board: list[ChessFile] = [[None for _ in range(8)] for _ in range(8)]
+    def __init__(self, glyph_mode=False):
+        self.printer = BoardPrinter(glyph_mode)
 
-    def __getitem__(self, tup) -> None | Piece:
-        """You can add an item by using board[(x, y)]"""
-        return self.board[tup[1]][tup[0]]
+        self.array2D = []
+        for y in range(self.SIZE):
+            tmp = []
+            for x in range(self.SIZE):
+                if (x + y) % 2 != 0:
+                    color = Colors.BLACK
+                else:
+                    color = Colors.WHITE
+                tmp.append(Square(color))
+            self.array2D.append(tuple(tmp))
+        self.array2D = tuple(self.array2D)
 
-    def set_item(self, item: None | Piece, x: int, y: int):
-        self.board[y][x] = item
+    def printb(self):
+        self.printer.printb(self.array2D)
 
-    def remove_item(self, x, y) -> None | Piece:
-        item = self.board[y].pop(x)
-        self.board[y].insert(x, None)
-        return item
+    # def __getitem__(self, tup) -> None | Piece:
+    #     """You can add an item by using board[(x, y)]"""
+    #     return self.board[tup[1]][tup[0]]
 
-    def where_is_all(self) -> list[tuple[Point, Piece]]:
-        all = []
-        for y, row in enumerate(self.board):
-            for x, piece in enumerate(row):
-                if not piece:
-                    continue
-                all.append(((x, y), piece))
-        return all
+    # def set_item(self, item: None | Piece, x: int, y: int):
+    #     self.board[y][x] = item
 
-    def printb(self, highlights=None):
+    # def remove_item(self, x, y) -> None | Piece:
+    #     item = self.board[y].pop(x)
+    #     self.board[y].insert(x, None)
+    #     return item
+
+    # @staticmethod
+    # def is_square_white(x: int, y: int) -> bool:
+    #     """black squares -> odd (False) | white squares -> even (True)"""
+    #     return (x + y) % 2 == 0
+
+
+class Square:
+    def __init__(self, color):
+        self.color = color
+        self.occupant = None  # either None or Piece
+
+
+class BoardPrinter:
+    glyphs = {
+        "W": {
+            "K": "♔",
+            "Q": "♕",
+            "R": "♖",
+            "B": "♗",
+            "K": "♘",
+            "P": "♙",
+        },
+        "B": {
+            "K": "♚",
+            "Q": "♛",
+            "R": "♜",
+            "B": "♝",
+            "K": "♞",
+            "P": "♟︎",
+        },
+    }
+
+    def __init__(self, glpyh_mode=False):
+        self.glyph_mode = glpyh_mode
+
+    def printb(self, board, highlights=None):
         if highlights is None:
             highlights = ()
 
         print("     A  B  C  D  E  F  G  H ")
         print("  |‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾")
-        for y, row in enumerate(self.board):
-            for x, item in enumerate(row):
+        for y, row in enumerate(board):
+            for x, square in enumerate(row):
                 if x == 0:
                     print(f"{8 - y}", end=" | ")
 
+                # print either "X" for highlights or Square.color or Square.occupant
                 if (x, y) in highlights:
-                    # print(" X", end=" ")
-                    print(f" X", end=" ")
+                    print(f"XX", end=" ")
 
-                elif not item:
-                    print(f" {self.black_square}", end=" ")
-                    # uncomment to have alternating square colors
-                    # if self.is_square_white(x, y):
-                    #     print(f" {self.white_square}", end=" ")
-                    # else:
-                    #     print(f" {self.black_square}", end=" ")
+                if not square.occupant:
+                    print(square.color, end=" ")
+
                 else:
-                    print(f" {item}", end=" ")
+                    # fetch symbol from glyph hash
+                    glyph = self.glyphs[square.occupant[0]]
+                    print(glyph, end=" ")
+
             print()
 
-    @staticmethod
-    def is_square_white(x: int, y: int) -> bool:
-        """black squares -> odd (False) | white squares -> even (True)"""
-        return (x + y) % 2 == 0
+
+if __name__ == "__main__":
+    b = Board()
+    b.printb()

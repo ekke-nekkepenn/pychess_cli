@@ -1,7 +1,5 @@
 import re
 
-from my_types import Point, Vector
-
 # Chess Notation
 pattern_chess_notation = r"[A-H][1-8]"
 
