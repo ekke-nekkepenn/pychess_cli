@@ -2,6 +2,7 @@ from enum import StrEnum
 
 
 class Piece:
+
     base_vectors = {
         # Moves are in (x, y)
         "Pawn": ((0, 1), (-1, 1), (1, 1)),

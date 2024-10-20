@@ -1,9 +1,28 @@
+from .modes.standard import Standard
+
+
 class Game:
     def __init__(self, board):
         self.board = board
 
     def run(self):
-        return
+
+        while True:
+            print("(1) Standard\n(2) Puzzle\n(0) Exit")
+            ipt = "1"
+
+            match ipt:
+                case "1":
+                    results = Standard().run(self.board)
+                case "2":
+                    # puzzle mode
+                    raise NotImplementedError
+                case "0":
+                    input("Exiting now. Press any key to continue.")
+                    return
+                case _:
+                    print("thats not an option")
+                    continue
 
     #     while running:
     #         self.reset_move_lists()

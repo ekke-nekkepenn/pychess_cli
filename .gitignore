@@ -1,4 +1,5 @@
 .vscode
-__pycahe__
+__pycahe__/
 .venv/
+*.py[cod]
 

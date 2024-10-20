@@ -1,12 +1,13 @@
-from colors import Colors
+from .colors import Colors
+from .pieces import Piece, PieceType
 
 
 class Board:
-    SIZE = 8
-
-    def __init__(self, glyph_mode=False):
+    def __init__(self, glyph_mode):
+        self.SIZE = 8
         self.printer = BoardPrinter(glyph_mode)
 
+        # board creation Square instances are created
         self.array2D = []
         for y in range(self.SIZE):
             tmp = []
@@ -21,6 +22,19 @@ class Board:
 
     def printb(self):
         self.printer.printb(self.array2D)
+
+    def is_point_oob(self, x, y) -> bool:
+        return not (0 <= x <= self.SIZE and 0 <= y <= self.SIZE)
+
+    def set_item(self, x, y, item):
+        square = self.array2D[y][x]
+        square.set_item(item)
+
+    def convert_chess_notation_to_coordinate(self, s: str) -> tuple[int, int]:
+        m = {"a": 0, "b": 1, "c": 2, "d": 3, "e": 4, "f": 5, "g": 6, "h": 7}
+        x = m[s[0].lower()]
+        y = 8 - int(s[1])
+        return x, y
 
     # def __getitem__(self, tup) -> None | Piece:
     #     """You can add an item by using board[(x, y)]"""
@@ -45,25 +59,14 @@ class Square:
         self.color = color
         self.occupant = None  # either None or Piece
 
+    def set_item(self, item):
+        self.occupant = item
+
 
 class BoardPrinter:
     glyphs = {
-        "W": {
-            "K": "♔",
-            "Q": "♕",
-            "R": "♖",
-            "B": "♗",
-            "K": "♘",
-            "P": "♙",
-        },
-        "B": {
-            "K": "♚",
-            "Q": "♛",
-            "R": "♜",
-            "B": "♝",
-            "K": "♞",
-            "P": "♟︎",
-        },
+        "W": {"K": "♔", "Q": "♕", "R": "♖", "B": "♗", "K": "♘", "P": "♙", None: "⬜"},
+        "B": {"K": "♚", "Q": "♛", "R": "♜", "B": "♝", "K": "♞", "P": "♟︎", None: "⬛"},
     }
 
     def __init__(self, glpyh_mode=False):
@@ -78,7 +81,7 @@ class BoardPrinter:
         for y, row in enumerate(board):
             for x, square in enumerate(row):
                 if x == 0:
-                    print(f"{8 - y}", end=" | ")
+                    print(f"{len(board) - y}", end=" | ")
 
                 # print either "X" for highlights or Square.color or Square.occupant
                 if (x, y) in highlights:
