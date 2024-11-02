@@ -13,7 +13,7 @@ class Game:
 
             match ipt:
                 case "1":
-                    results = Standard().run(self.board)
+                    results = Standard().setup(self.board)
                 case "2":
                     # puzzle mode
                     raise NotImplementedError
@@ -23,20 +23,6 @@ class Game:
                 case _:
                     print("thats not an option")
                     continue
-
-    #     while running:
-    #         self.reset_move_lists()
-    #         self.find_all_valid_moves()
-    #         self.debug_print_pieces_moves()
-    #         # Turn Starts
-    #         self.board.printb()
-
-    #         # move selected piece
-
-    #         # end step
-    #         turn += 1
-    #         current_player = self.set_current_player(turn)
-    #         running = False
 
     # def reset_move_lists(self):
     #     positions_and_pieces = self.board.where_is_all()

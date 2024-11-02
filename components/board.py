@@ -1,3 +1,4 @@
+from turtle import color
 from .colors import Colors
 from .pieces import Piece, PieceType
 
@@ -29,6 +30,11 @@ class Board:
     def set_item(self, x, y, item):
         square = self.array2D[y][x]
         square.set_item(item)
+
+    def load_layout(self, layout):
+        for y, line in enumerate(layout):
+            for x, item in enumerate(line):
+                self.set_item(x, y, item)
 
     def convert_chess_notation_to_coordinate(self, s: str) -> tuple[int, int]:
         m = {"a": 0, "b": 1, "c": 2, "d": 3, "e": 4, "f": 5, "g": 6, "h": 7}
@@ -87,13 +93,17 @@ class BoardPrinter:
                 if (x, y) in highlights:
                     print(f"XX", end=" ")
 
-                if not square.occupant:
-                    print(square.color, end=" ")
+                elif not square.occupant:
+                    color_key = square.color[0]
+                    glyph = self.glyphs[color_key][None]
+                    print(glyph, end=" ")
 
                 else:
-                    # fetch symbol from glyph hash
-                    glyph = self.glyphs[square.occupant[0]]
-                    print(glyph, end=" ")
+                    color_key = square.occupant.color[0]
+                    type_key = square.occupant.type[0]
+
+                    glyph = self.glyphs[color_key][type_key]
+                    print(glyph + " ", end=" ")
 
             print()
 
