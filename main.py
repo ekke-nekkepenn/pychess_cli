@@ -1,13 +1,33 @@
 from .game import Game
 from .components.board import Board
 
+from .modes.base_class import GameMode
+from .modes.standard import Standard
+
 
 def main():
     # TODO: make sure glyphs are visible then enable them
     glyph_mode = True
     board = Board(glyph_mode)
-    game = Game(board)
-    game.run()
+    # game = Game(board)
+    # game.run()
+    while True:
+        print("(1) Standard\n(2) Puzzle\n(0) Exit")
+        ipt = "1"
+
+        match ipt:
+            case "1":
+                standard_game = Standard(board)
+                results = standard_game.run()
+            case "2":
+                # puzzle mode
+                raise NotImplementedError
+            case "0":
+                input("Exiting now. Press any key to continue.")
+                return
+            case _:
+                print("thats not an option")
+                continue
 
 
 if __name__ == "__main__":
