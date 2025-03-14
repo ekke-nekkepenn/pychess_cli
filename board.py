@@ -21,7 +21,7 @@ class Board:
     def remove_item(self, x, y) -> Piece | None:
         e = self.field[y][x][0]
         if e:
-            self.field[y][x][p] = None
+            self.field[y][x][0] = None
         return e
 
 
