@@ -1,4 +1,5 @@
 from enum import StrEnum
+from dataclasses import dataclass
 
 
 class PieceType(StrEnum):
@@ -10,28 +11,8 @@ class PieceType(StrEnum):
     PAWN = "Pawn"
 
 
-base_vectors = {
-    # Moves are in (x, y)
-    "Pawn": ((0, 1), (-1, 1), (1, 1)),
-    "Rook": ((0, 1), (0, -1), (1, 0), (-1, 0)),
-    "Bishop": ((1, 1), (-1, 1), (1, -1), (-1, -1)),
-    "Queen": ((1, 1), (-1, 1), (1, -1), (-1, -1), (0, 1), (0, -1), (1, 0), (-1, 0)),
-    "King": ((1, 1), (-1, 1), (1, -1), (-1, -1), (0, 1), (0, -1), (1, 0), (-1, 0)),
-    "Knight": (
-        (2, 1),
-        (2, -1),
-        (-2, 1),
-        (-2, -1),
-        (1, 2),
-        (-1, 2),
-        (1, -2),
-        (-1, -2),
-    ),
-}
-
-
+@dataclass
 class Piece:
-    def __init__(self, type, color):
-        self.type = type
-        self.color = color
-        self.status_moved = False
+    color: str
+    type: str
+    status_moved = False

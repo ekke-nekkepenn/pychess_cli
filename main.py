@@ -11,7 +11,7 @@ type Layout = tuple[tuple[str, ...], ...]
 file_name = "layout_standard.csv"
 
 # Paths
-path_layout = Path() / "layouts" / file_name
+path_layout = Path(".") / "layouts" / file_name
 
 
 def main():
@@ -48,10 +48,15 @@ def apply_layout(b: Board, l: Layout) -> bool:
             pcolor = None
             # Get color and type e.g "bP" -> "Black" "Pawn"
             pcolor = Colors.WHITE if e[0] == "w" else Colors.BLACK
+            # iter over Enum and check if first letter match
             for t in PieceType:
-                if e[1] == t[0]:
+                if t != "Knight":
+                    if e[1] == t[0]:
+                        ptype = t
+                        break
+                # except Knight which uses 'N' as identifier
+                else:
                     ptype = t
-                    break
 
             # check if failed for some reason
             if pcolor == None or ptype == None:
