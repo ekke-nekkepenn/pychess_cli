@@ -5,7 +5,7 @@ from pieces import Piece, PieceType
 from colors import Colors
 
 # Custom Types
-type Layout = tuple[tuple[str, ...], ...]
+# type Layout = tuple[tuple[str, ...], ...]
 
 
 file_name = "layout_standard.csv"
@@ -26,21 +26,22 @@ def main():
     game.run(board)
 
 
-def get_layout(fp: Path) -> Layout:
+def get_layout(fp: Path):
     with open(fp, "r") as f:
-        layout = f.read().split()
-        for i, e in enumerate(layout):
-            layout[i] = tuple(e.split(","))
+        split_text = f.read().split()
+        layout = []
+        for string in split_text:
+            layout.append(tuple(string.split(",")))
 
     return tuple(layout)
 
 
-def apply_layout(b: Board, l: Layout) -> bool:
+def apply_layout(b: Board, layout) -> bool:
     """Create Piece objects and fill up game board"""
     # iterate over Layout
-    for y, line in enumerate(l):
+    for y, line in enumerate(layout):
         for x, e in enumerate(line):
-            # skip empty strings
+            # skip empty string -> ""
             if not e:
                 continue
 
@@ -64,6 +65,7 @@ def apply_layout(b: Board, l: Layout) -> bool:
 
             p = Piece(pcolor, ptype)
             b.set_item(x, y, p)
+
     return True
 
 

@@ -10,7 +10,7 @@ Sprite_letters = {
         "Bishop": "wB",
         "Knight": "wN",
         "Pawn": "wP",
-        None: "))",
+        None: "[]",
     },
     "Black": {
         "King": "bK",
@@ -19,7 +19,7 @@ Sprite_letters = {
         "Bishop": "bB",
         "Knight": "bN",
         "Pawn": "bP",
-        None: "((",
+        None: "{}",
     },
 }
 
@@ -58,7 +58,7 @@ class Board:
         self.letters_on = letters_on
         self.p = Printer()
 
-    def __generate_field__(self) -> tuple[tuple[Square | None, ...], ...]:
+    def __generate_field__(self) -> tuple[tuple[Square], ...]:
         # 8x8 tuple with [None] filled
         # return tuple([tuple([[None] for _ in range(8)]) for _ in range(8)])
         field = []
@@ -71,6 +71,9 @@ class Board:
 
     def printb(self):
         self.p.print_field(self.field, self.letters_on)
+
+    def get_item(self, x, y) -> Piece | None:
+        return self.field[y][x].occ
 
     def set_item(self, x, y, item: Piece | None):
         # elements in field are each a list with one element

@@ -11,7 +11,8 @@ class PieceType(StrEnum):
     PAWN = "Pawn"
 
 
-@dataclass
+# eq & frozen == true so we can use it as key in a dict
+@dataclass(eq=True, frozen=True)
 class Piece:
     color: str
     type: str
