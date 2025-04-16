@@ -30,6 +30,8 @@ class Game:
         turn = 0
         flag_run = True
 
+        move_list = []
+
         while flag_run:
             all_valid_moves = self.mfinder.find_all_moves(board)
             turn += 1
@@ -95,41 +97,114 @@ class MoveFinder:
 
                 piece = square.occ
                 bvs = base_vectors[piece.type]
+                self.all_valid_moves.setdefault(piece, [])
 
                 if piece.type == PieceType.PAWN:
                     pass
-                elif piece.type == PieceType.KING:
-                    pass
-                elif piece.type == PieceType.KNIGHT:
-                    pass
+                elif piece.type == PieceType.KING or PieceType.KNIGHT:
+                    self.fm_king_knight(b, piece, x, y, bvs)
                 else:  # Queen, Rook, Bishop use same logic
                     self.fm_qbr(b, piece, x, y, bvs)
 
         return self.all_valid_moves
 
-    def fm_pawn(self, b: Board, x, y, bv):
+    def fm_pawn(self, b: Board, p, x, y, bvs):
         """rules for how a Pawn can move:
         -can only move forward 1 square
         -can move 2 if not moved before (as first move)
         -can move diagionally to capture if enemy in place
         -En Passant rule ~
         """
-        pass
+        bv = bvs[0][0] if p.color == Colors.WHITE else bvs[1][0]
+
+        r = 2 if p.status_moved else 3
+        for i in range(1, r):
+            v = bv * i
+            nx = x + v.x
+            ny = y + v.y
+
+            if not self.is_in_bounds(nx, ny):
+                break
+
+            if b.get_item(nx, ny) is None:
+                if self.is_king_exposed():
+                    break
+                self.all_valid_moves[p].append()
+
+            else:
+                break
 
     def fm_pawn_capture(self, b: Board, p, x, y, bvs):
-        pass
+        bvs = bvs[0] if p.color == Colors.WHITE else bvs[1]
+
+        for bv in bvs:
+            nx = x + bv.x
+            ny = y + bv.y
+
+            if not self.is_in_bounds(nx, ny):
+                continue
+
+            item = b.get_item(nx, ny)
+
+            if item is None or item.color == p.color:
+                continue
+
+            else:
+                if self.is_king_exposed():
+                    continue
+
+                self.all_valid_moves[p].append(bv)
 
     def fm_pawn_en_passant(self, b: Board, p, x, y, bvs):
+        """need to exstablish a move list and inspect the last item in it. If a pawn moved 2 sqrs from start pos then we en passant that bitch"""
         pass
+
+    def fm_king_knight(self, b: Board, p, x, y, bvs):
+        for bv in bvs:
+            nx = x + bv.x
+            ny = y + bv.y
+
+            if not self.is_in_bounds(nx, ny):
+                continue
+
+            item = b.get_item(nx, ny)
+
+            if item is None or item.color != p.color:
+                if self.is_king_exposed():
+                    continue
+                self.all_valid_moves[p].append(bv)
 
     def fm_king(self, b: Board, p, x, y, bvs):
-        pass
+        for bv in bvs:
+            nx = x + bv.x
+            ny = y + bv.y
+
+            if not self.is_in_bounds(nx, ny):
+                continue
+
+            item = b.get_item(nx, ny)
+
+            if item is None or item.color != p.color:
+                if self.is_king_exposed():
+                    continue
+                self.all_valid_moves[p].append(bv)
 
     def fm_knight(self, b: Board, p, x, y, bvs):
-        pass
+        for bv in bvs:
+            nx = x + bv.x
+            ny = y + bv.y
+
+            if not self.is_in_bounds(nx, ny):
+                continue
+
+            item = b.get_item(nx, ny)
+
+            if item is None or item.color != p.color:
+                if self.is_king_exposed():
+                    continue
+                self.all_valid_moves[p].append(bv)
 
     def fm_qbr(self, b: Board, p, x, y, bvs):
-        self.all_valid_moves.setdefault(p, [])
         # iter over base vectors
         for bv in bvs:
             i = 1
@@ -146,6 +221,8 @@ class MoveFinder:
                 item = b.get_item(nx, ny)
 
                 if item is None:
+                    if self.is_king_exposed():
+                        break
                     self.all_valid_moves[p].append(v)
 
                 elif item.color == p.color:
@@ -156,7 +233,10 @@ class MoveFinder:
                     break
 
                 i += 1
-            print()
 
     def is_in_bounds(self, nx, ny):
         return 0 <= nx <= 7 and 0 <= ny <= 7
+
+    def is_king_exposed(self):
+        """Checking if king is exposed after moving a piece. Make the move, then from the position of the king use Queen bvs and Knight bvs outwards from the king and if you find an OPPS it means king is exposed THEN revert the move"""
+        return True
