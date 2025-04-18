@@ -53,12 +53,12 @@ class Square:
 
 
 class Board:
-    def __init__(self, letters_on=True):
-        self.field = self.__generate_field__()
-        self.letters_on = letters_on
+    def __init__(self, style="Char"):
+        self.field = self.__init_field__()
+        self.style = style
         self.p = Printer()
 
-    def __generate_field__(self) -> tuple[tuple[Square], ...]:
+    def __init_field__(self) -> tuple[tuple[Square], ...]:
         # 8x8 tuple with [None] filled
         # return tuple([tuple([[None] for _ in range(8)]) for _ in range(8)])
         field = []
@@ -70,7 +70,7 @@ class Board:
         return tuple(field)
 
     def printb(self):
-        self.p.print_field(self.field, self.letters_on)
+        self.p.print_field(self.field, self.style)
 
     def get_item(self, x, y) -> Piece | None:
         return self.field[y][x].occ
@@ -86,18 +86,25 @@ class Board:
             self.field[y][x] = None
         return e
 
+    def move(self, x, y, nx, ny) -> Piece | None:
+        # moves p to dest
+        p = self.get_item(x, y)
+        dest = self.get_item(nx, ny)
+        self.set_item(nx, ny, p)
+        return dest
+
 
 class Printer:
     def __init__(self):
         pass
 
-    def print_field(self, field, mode):
-        if mode:
-            self.print_letters(field)
-        else:
+    def print_field(self, field, style):
+        if style == "Char":
+            self.print_char(field)
+        elif style == "Glyph":
             self.print_glyphs(field)
 
-    def print_letters(self, field):
+    def print_char(self, field):
         for y, row in enumerate(field):
             for x, square in enumerate(row):
                 piece = square.occ

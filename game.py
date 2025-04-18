@@ -30,7 +30,10 @@ class Game:
         turn = 0
         flag_run = True
 
-        move_list = []
+        """ move_history stores each move per turn. Moves are in this format [(x, y), (nx, ny), "Captured Piece?"]. 
+        Old position to new position + captured piece if even"""
+        move_history = []
+        captured_pieces = {}  # k: turn, v: Piece
 
         while flag_run:
             all_valid_moves = self.mfinder.find_all_moves(board)
@@ -39,10 +42,12 @@ class Game:
 
             print(f"({turn}) {turn_player}'s Turn")
             board.printb()
-
             # get player input
 
             break
+
+    def get_input(self):
+        pass
 
 
 # base vectors
@@ -57,7 +62,7 @@ v_UL = Vector(-1, -1)
 v_DL = Vector(1, -1)
 
 # knight jumps
-# the letter after j has always |2| as value
+# the letter after j is always |2|
 # e.g v_jDR -> D is 2
 v_jUR = Vector(-2, 1)
 v_jUL = Vector(-2, -1)
@@ -71,7 +76,9 @@ v_jLD = Vector(1, -2)
 
 base_vectors = {
     # Moves are in (x, y)
-    # ["Pawn"][0] is for white and [1] is for black
+    # "Pawn"[0] white and [1] black
+    # "Pawn"[0][0] & [1][0] move vector
+    # "Pawn"[0][1-2] & [1][1-2] capture vectors
     "Pawn": ((v_U, v_UR, v_UL), (v_D, v_DR, v_DL)),
     "Rook": (v_R, v_L, v_U, v_D),
     "Bishop": (v_UR, v_DR, v_UL, v_DL),
@@ -117,8 +124,7 @@ class MoveFinder:
         """
         bv = bvs[0][0] if p.color == Colors.WHITE else bvs[1][0]
 
-        r = 2 if p.status_moved else 3
-        for i in range(1, r):
+        for i in range(1, (2 if p.status_moved else 3)):
             v = bv * i
             nx = x + v.x
             ny = y + v.y
@@ -156,40 +162,10 @@ class MoveFinder:
                 self.all_valid_moves[p].append(bv)
 
     def fm_pawn_en_passant(self, b: Board, p, x, y, bvs):
-        """need to exstablish a move list and inspect the last item in it. If a pawn moved 2 sqrs from start pos then we en passant that bitch"""
-        pass
+        """need to exstablish MOVE HISTORY and inspect the last move in it. If a pawn moved 2 sqrs from start pos then we en passant that bitch"""
+        raise NotImplementedError
 
     def fm_king_knight(self, b: Board, p, x, y, bvs):
-        for bv in bvs:
-            nx = x + bv.x
-            ny = y + bv.y
-
-            if not self.is_in_bounds(nx, ny):
-                continue
-
-            item = b.get_item(nx, ny)
-
-            if item is None or item.color != p.color:
-                if self.is_king_exposed():
-                    continue
-                self.all_valid_moves[p].append(bv)
-
-    def fm_king(self, b: Board, p, x, y, bvs):
-        for bv in bvs:
-            nx = x + bv.x
-            ny = y + bv.y
-
-            if not self.is_in_bounds(nx, ny):
-                continue
-
-            item = b.get_item(nx, ny)
-
-            if item is None or item.color != p.color:
-                if self.is_king_exposed():
-                    continue
-                self.all_valid_moves[p].append(bv)
-
-    def fm_knight(self, b: Board, p, x, y, bvs):
         for bv in bvs:
             nx = x + bv.x
             ny = y + bv.y
@@ -239,4 +215,5 @@ class MoveFinder:
 
     def is_king_exposed(self):
         """Checking if king is exposed after moving a piece. Make the move, then from the position of the king use Queen bvs and Knight bvs outwards from the king and if you find an OPPS it means king is exposed THEN revert the move"""
-        return True
+        # raise NotImplementedError
+        return False

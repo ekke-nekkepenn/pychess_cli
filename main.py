@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from board import Board
 from game import Game
@@ -15,7 +16,16 @@ path_layout = Path(".") / "layouts" / file_name
 
 
 def main():
-    board = Board()
+    # Style Selection
+    style = "Char"  # default style
+
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "g":
+            style = "Glyph"
+
+    # Style Selection
+
+    board = Board(style)
     layout = get_layout(path_layout)
 
     if not apply_layout(board, layout):
