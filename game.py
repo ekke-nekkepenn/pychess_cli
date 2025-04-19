@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from email.mime import base
+from hmac import new
 from board import Board
 from colors import Colors
 from pieces import Piece, PieceType
@@ -40,14 +41,44 @@ class Game:
             turn += 1
             turn_player = player_1 if turn % 2 != 0 else player_2
 
-            print(f"({turn}) {turn_player}'s Turn")
+            print(f"{turn_player}'s Turn ({turn})")
             board.printb()
             # get player input
+            origin = self.select_square()
+            og_pos = self.convert_chess_nota_to_index(origin)
+
+            dest = self.select_square()
+            new_pos = self.convert_chess_nota_to_index(dest)
 
             break
 
-    def get_input(self):
-        pass
+    def select_square(self) -> str:
+        while True:
+            ipt = input(": ")
+            if len(ipt) != 2:
+                print("[a-h][1-8] e.g d4")
+                continue
+
+            if ipt[0].lower() < "a" or ipt[0].lower() > "h":
+                continue
+
+            if ipt[1] < "1" or ipt[1] > "8":
+                continue
+
+            break
+        return ipt
+
+    def convert_chess_nota_to_index(self, nota):
+        # nota's first 2 chars HAVE TO be a LETTER and DIGIT
+        y = 8 - int(nota[1])
+        x = ord(nota[0].lower()) - ord("a")
+        return x, y
+
+    def convert_index_to_chess_nota(self, idx):
+        # idx has 2 int each need to be btw 0-7
+        d = str(8 - idx[0])
+        c = int(ord("a") + idx[1])
+        return c + d
 
 
 # base vectors
@@ -213,7 +244,6 @@ class MoveFinder:
     def is_in_bounds(self, nx, ny):
         return 0 <= nx <= 7 and 0 <= ny <= 7
 
-    def is_king_exposed(self):
+    def is_king_exposed(self, b: Board, x, y, nx, ny):
         """Checking if king is exposed after moving a piece. Make the move, then from the position of the king use Queen bvs and Knight bvs outwards from the king and if you find an OPPS it means king is exposed THEN revert the move"""
-        # raise NotImplementedError
         return False

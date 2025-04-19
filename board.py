@@ -56,7 +56,7 @@ class Board:
     def __init__(self, style="Char"):
         self.field = self.__init_field__()
         self.style = style
-        self.p = Printer()
+        self.printer = Printer(style)
 
     def __init_field__(self) -> tuple[tuple[Square], ...]:
         # 8x8 tuple with [None] filled
@@ -70,14 +70,12 @@ class Board:
         return tuple(field)
 
     def printb(self):
-        self.p.print_field(self.field, self.style)
+        self.printer.print_field(self.field, self.style)
 
     def get_item(self, x, y) -> Piece | None:
         return self.field[y][x].occ
 
     def set_item(self, x, y, item: Piece | None):
-        # elements in field are each a list with one element
-        # acces item with [0]
         self.field[y][x].occ = item
 
     def remove_item(self, x, y) -> Piece | None:
@@ -95,13 +93,13 @@ class Board:
 
 
 class Printer:
-    def __init__(self):
-        pass
+    def __init__(self, style):
+        self.style = style
 
-    def print_field(self, field, style):
-        if style == "Char":
+    def print_field(self, field):
+        if self.style == "Char":
             self.print_char(field)
-        elif style == "Glyph":
+        elif self.style == "Glyph":
             self.print_glyphs(field)
 
     def print_char(self, field):
