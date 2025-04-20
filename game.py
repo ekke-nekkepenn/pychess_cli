@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from email.mime import base
+import enum
 from hmac import new
 from board import Board
 from colors import Colors
@@ -44,11 +45,11 @@ class Game:
             print(f"{turn_player}'s Turn ({turn})")
             board.printb()
             # get player input
-            origin = self.select_square()
-            og_pos = self.convert_chess_nota_to_index(origin)
+            # origin = self.select_square()
+            # og_pos = self.convert_chess_nota_to_index(origin)
 
-            dest = self.select_square()
-            new_pos = self.convert_chess_nota_to_index(dest)
+            # dest = self.select_square()
+            # new_pos = self.convert_chess_nota_to_index(dest)
 
             break
 
@@ -69,7 +70,7 @@ class Game:
         return ipt
 
     def convert_chess_nota_to_index(self, nota):
-        # nota's first 2 chars HAVE TO be a LETTER and DIGIT
+        # nota's first 2 chars HAVE TO be a LETTER[A-H] and DIGIT[1-8]
         y = 8 - int(nota[1])
         x = ord(nota[0].lower()) - ord("a")
         return x, y
@@ -77,7 +78,7 @@ class Game:
     def convert_index_to_chess_nota(self, idx):
         # idx has 2 int each need to be btw 0-7
         d = str(8 - idx[0])
-        c = int(ord("a") + idx[1])
+        c = str(int(ord("a") + idx[1]))
         return c + d
 
 
@@ -94,7 +95,6 @@ v_DL = Vector(1, -1)
 
 # knight jumps
 # the letter after j is always |2|
-# e.g v_jDR -> D is 2
 v_jUR = Vector(-2, 1)
 v_jUL = Vector(-2, -1)
 v_jRU = Vector(-1, 2)
@@ -139,9 +139,10 @@ class MoveFinder:
 
                 if piece.type == PieceType.PAWN:
                     pass
-                elif piece.type == PieceType.KING or PieceType.KNIGHT:
-                    self.fm_king_knight(b, piece, x, y, bvs)
-                else:  # Queen, Rook, Bishop use same logic
+                elif piece.type in (PieceType.KING, PieceType.KNIGHT):
+                    pass
+                    # self.fm_king_knight(b, piece, x, y, bvs)
+                else:
                     self.fm_qbr(b, piece, x, y, bvs)
 
         return self.all_valid_moves
@@ -164,7 +165,7 @@ class MoveFinder:
                 break
 
             if b.get_item(nx, ny) is None:
-                if self.is_king_exposed():
+                if self.is_king_exposed(b, x, y, nx, ny):
                     break
                 self.all_valid_moves[p].append()
 
@@ -187,7 +188,7 @@ class MoveFinder:
                 continue
 
             else:
-                if self.is_king_exposed():
+                if self.is_king_exposed(b, x, y, nx, ny):
                     continue
 
                 self.all_valid_moves[p].append(bv)
@@ -207,7 +208,7 @@ class MoveFinder:
             item = b.get_item(nx, ny)
 
             if item is None or item.color != p.color:
-                if self.is_king_exposed():
+                if self.is_king_exposed(b, x, y, nx, ny):
                     continue
                 self.all_valid_moves[p].append(bv)
 
@@ -228,7 +229,7 @@ class MoveFinder:
                 item = b.get_item(nx, ny)
 
                 if item is None:
-                    if self.is_king_exposed():
+                    if self.is_king_exposed(b, x, y, nx, ny):
                         break
                     self.all_valid_moves[p].append(v)
 
@@ -246,4 +247,35 @@ class MoveFinder:
 
     def is_king_exposed(self, b: Board, x, y, nx, ny):
         """Checking if king is exposed after moving a piece. Make the move, then from the position of the king use Queen bvs and Knight bvs outwards from the king and if you find an OPPS it means king is exposed THEN revert the move"""
+        # possible_p = b.move(x, y, nx, ny)  # need to revert this move
+
+        # piece_to_move = b.get_item(x, y)
+        # color_king = piece_to_move.color  # prev func makes sure this is a Piece obj
+
+        ## Find Position of King w/ same color as Piece (x, y)
+        # for tmp_y, row in enumerate(b.field):
+        # for tmp_x, i in enumerate(row):
+        # if i.occ is None:
+        # continue
+        # if i.occ.type == PieceType.KING and i.occ.color == color_king:
+        # king_x = tmp_x
+        # king_y = tmp_y
+        # break
+        ## will be called if the previous loop did not end with a `break`
+        # else:
+        # continue
+        # break
+        ##
+
+        ## use Queen & Knight Vecs casting out of king_x, king_y
+        # qbvs = base_vectors[PieceType.QUEEN]
+        # kbvs = base_vectors[PieceType.KNIGHT]
+        # for qbv in qbvs:
+        # i = 1
+        # while True:
+
+        ## revert move
+        # b.move(nx, ny, x, y)
+        # b.set_item(nx, ny, possible_p)
+
         return False

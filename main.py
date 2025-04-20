@@ -9,10 +9,14 @@ from colors import Colors
 # type Layout = tuple[tuple[str, ...], ...]
 
 
-file_name = "layout_standard.csv"
+file_name = [
+    "layout_standard.csv",
+    "layout_testing.csv",
+]
+
 
 # Paths
-path_layout = Path(".") / "layouts" / file_name
+path_layout = Path(".") / "layouts" / file_name[1]
 
 
 def main():
@@ -22,6 +26,8 @@ def main():
     if len(sys.argv) > 1:
         if sys.argv[1] == "g":
             style = "Glyph"
+        elif sys.argv[1] == "c":
+            style = "Char"
 
     # Style Selection
 
