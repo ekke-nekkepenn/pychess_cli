@@ -11,9 +11,13 @@ class PieceType(StrEnum):
     PAWN = "Pawn"
 
 
-# eq & frozen == true so we can use it as key in a dict
-@dataclass(eq=True, frozen=True)
+#
+@dataclass
 class Piece:
     color: str
     type: str
     status_moved = False
+
+    # need custom hash function or else Piece() instances with same fields have same hash
+    def __hash__(self):
+        return id(self)

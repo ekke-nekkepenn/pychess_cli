@@ -41,6 +41,7 @@ class Game:
             all_valid_moves = self.mfinder.find_all_moves(board)
             turn += 1
             turn_player = player_1 if turn % 2 != 0 else player_2
+            self.DEBUG_save_to_file(all_valid_moves)
 
             print(f"{turn_player}'s Turn ({turn})")
             board.printb()
@@ -52,6 +53,13 @@ class Game:
             # new_pos = self.convert_chess_nota_to_index(dest)
 
             break
+
+    def DEBUG_save_to_file(self, a):
+        with open("moves.txt", "w") as f:
+            for k, v in a.items():
+                f.write(f"{k}\n")
+                for i in v:
+                    f.write(f"\t{i}\n")
 
     def select_square(self) -> str:
         while True:
@@ -121,7 +129,6 @@ base_vectors = {
 
 class MoveFinder:
     def __init__(self):
-        # key[Piece]: value[list]
         self.all_valid_moves = {}
 
     def find_all_moves(self, b: Board):
@@ -138,7 +145,8 @@ class MoveFinder:
                 self.all_valid_moves.setdefault(piece, [])
 
                 if piece.type == PieceType.PAWN:
-                    pass
+                    self.fm_pawn(b, piece, x, y, bvs)
+                    self.fm_pawn_capture(b, piece, x, y, bvs)
                 elif piece.type in (PieceType.KING, PieceType.KNIGHT):
                     pass
                     # self.fm_king_knight(b, piece, x, y, bvs)
@@ -167,7 +175,7 @@ class MoveFinder:
             if b.get_item(nx, ny) is None:
                 if self.is_king_exposed(b, x, y, nx, ny):
                     break
-                self.all_valid_moves[p].append()
+                self.all_valid_moves[p].append(v)
 
             else:
                 break
@@ -175,7 +183,7 @@ class MoveFinder:
     def fm_pawn_capture(self, b: Board, p, x, y, bvs):
         bvs = bvs[0] if p.color == Colors.WHITE else bvs[1]
 
-        for bv in bvs:
+        for bv in bvs[1:]:
             nx = x + bv.x
             ny = y + bv.y
 
@@ -247,24 +255,25 @@ class MoveFinder:
 
     def is_king_exposed(self, b: Board, x, y, nx, ny):
         """Checking if king is exposed after moving a piece. Make the move, then from the position of the king use Queen bvs and Knight bvs outwards from the king and if you find an OPPS it means king is exposed THEN revert the move"""
-        # possible_p = b.move(x, y, nx, ny)  # need to revert this move
+        return False
+        possible_p = b.move(x, y, nx, ny)  # need to revert this move
 
-        # piece_to_move = b.get_item(x, y)
-        # color_king = piece_to_move.color  # prev func makes sure this is a Piece obj
+        piece_to_move = b.get_item(x, y)
+        color_king = piece_to_move.color  # prev func makes sure this is a Piece obj
 
-        ## Find Position of King w/ same color as Piece (x, y)
-        # for tmp_y, row in enumerate(b.field):
-        # for tmp_x, i in enumerate(row):
-        # if i.occ is None:
-        # continue
-        # if i.occ.type == PieceType.KING and i.occ.color == color_king:
-        # king_x = tmp_x
-        # king_y = tmp_y
-        # break
-        ## will be called if the previous loop did not end with a `break`
-        # else:
-        # continue
-        # break
+        # Find Position of King w/ same color as Piece (x, y)
+        for tmp_y, row in enumerate(b.field):
+            for tmp_x, i in enumerate(row):
+                if i.occ is None:
+                    continue
+                if i.occ.type == PieceType.KING and i.occ.color == color_king:
+                    king_x = tmp_x
+                    king_y = tmp_y
+                    break
+            else:
+                # will be called if the previous loop did not end with a `break`
+                continue
+            break
         ##
 
         ## use Queen & Knight Vecs casting out of king_x, king_y

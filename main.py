@@ -12,11 +12,12 @@ from colors import Colors
 file_name = [
     "layout_standard.csv",
     "layout_testing.csv",
+    "test2.csv",
 ]
 
 
 # Paths
-path_layout = Path(".") / "layouts" / file_name[1]
+path_layout = Path(".") / "layouts" / file_name[2]
 
 
 def main():
