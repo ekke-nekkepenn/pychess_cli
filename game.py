@@ -1,7 +1,4 @@
 from dataclasses import dataclass
-from email.mime import base
-import enum
-from hmac import new
 from board import Board
 from colors import Colors
 from pieces import Piece, PieceType
@@ -30,38 +27,38 @@ class Game:
         player_2 = Colors.BLACK
 
         turn = 0
-        flag_run = True
 
         """ move_history stores each move per turn. Moves are in this format [(x, y), (nx, ny), "Captured Piece?"]. 
         Old position to new position + captured piece if even"""
         move_history = []
         captured_pieces = {}  # k: turn, v: Piece
 
+        flag_run = True
         while flag_run:
             all_valid_moves = self.mfinder.find_all_moves(board)
             turn += 1
             turn_player = player_1 if turn % 2 != 0 else player_2
-            self.DEBUG_save_to_file(all_valid_moves)
 
+            self.debug_to_files(all_valid_moves)
             print(f"{turn_player}'s Turn ({turn})")
             board.printb()
             # get player input
-            # origin = self.select_square()
+            # origin = self.player_select_square()
             # og_pos = self.convert_chess_nota_to_index(origin)
 
-            # dest = self.select_square()
+            # dest = self.player_select_square()
             # new_pos = self.convert_chess_nota_to_index(dest)
 
             break
 
-    def DEBUG_save_to_file(self, a):
-        with open("moves.txt", "w") as f:
-            for k, v in a.items():
+    def debug_to_files(self, all_moves):
+        with open("valid_moves.txt", "w") as f:
+            for k, v in all_moves.items():
                 f.write(f"{k}\n")
                 for i in v:
                     f.write(f"\t{i}\n")
 
-    def select_square(self) -> str:
+    def player_select_square(self) -> str:
         while True:
             ipt = input(": ")
             if len(ipt) != 2:
@@ -91,15 +88,16 @@ class Game:
 
 
 # base vectors
+#     Vector(x, y)
 v_U = Vector(0, -1)
 v_D = Vector(0, 1)
 v_R = Vector(1, 0)
 v_L = Vector(-1, 0)
 
-v_UR = Vector(-1, 1)
+v_UR = Vector(1, -1)
 v_DR = Vector(1, 1)
 v_UL = Vector(-1, -1)
-v_DL = Vector(1, -1)
+v_DL = Vector(-1, 1)
 
 # knight jumps
 # the letter after j is always |2|
@@ -127,8 +125,11 @@ base_vectors = {
 }
 
 
+# This whole class kinda works but checking if the king is exposed
+# for a Vector seems really challenging and repetitve
 class MoveFinder:
     def __init__(self):
+        # key[Piece]: value[list]
         self.all_valid_moves = {}
 
     def find_all_moves(self, b: Board):
@@ -137,19 +138,21 @@ class MoveFinder:
         self.all_valid_moves = {}
         for y, row in enumerate(b.field):
             for x, square in enumerate(row):
-                if square.occ is None:
+                piece = square.occ
+                if piece is None:
                     continue
 
-                piece = square.occ
                 bvs = base_vectors[piece.type]
+                # cannot use dataclasses with same fields because for "hashability" they use the fields
+                # so 2 dataclass instances with exact same fields are treated as the same key
+                # they are though not the same in memory
                 self.all_valid_moves.setdefault(piece, [])
 
                 if piece.type == PieceType.PAWN:
                     self.fm_pawn(b, piece, x, y, bvs)
                     self.fm_pawn_capture(b, piece, x, y, bvs)
                 elif piece.type in (PieceType.KING, PieceType.KNIGHT):
-                    pass
-                    # self.fm_king_knight(b, piece, x, y, bvs)
+                    self.fm_king_knight(b, piece, x, y, bvs)
                 else:
                     self.fm_qbr(b, piece, x, y, bvs)
 
@@ -173,7 +176,7 @@ class MoveFinder:
                 break
 
             if b.get_item(nx, ny) is None:
-                if self.is_king_exposed(b, x, y, nx, ny):
+                if self.is_king_exposed(b, p, x, y, nx, ny):
                     break
                 self.all_valid_moves[p].append(v)
 
@@ -181,9 +184,9 @@ class MoveFinder:
                 break
 
     def fm_pawn_capture(self, b: Board, p, x, y, bvs):
-        bvs = bvs[0] if p.color == Colors.WHITE else bvs[1]
+        bvs = bvs[0][1:] if p.color == Colors.WHITE else bvs[1][1:]
 
-        for bv in bvs[1:]:
+        for bv in bvs:
             nx = x + bv.x
             ny = y + bv.y
 
@@ -196,7 +199,7 @@ class MoveFinder:
                 continue
 
             else:
-                if self.is_king_exposed(b, x, y, nx, ny):
+                if self.is_king_exposed(b, p, x, y, nx, ny):
                     continue
 
                 self.all_valid_moves[p].append(bv)
@@ -216,17 +219,18 @@ class MoveFinder:
             item = b.get_item(nx, ny)
 
             if item is None or item.color != p.color:
-                if self.is_king_exposed(b, x, y, nx, ny):
+                if self.is_king_exposed(b, p, x, y, nx, ny):
                     continue
                 self.all_valid_moves[p].append(bv)
 
     def fm_qbr(self, b: Board, p, x, y, bvs):
         # iter over base vectors
         for bv in bvs:
-            i = 1
+            i = 0
             while True:
+                i += 1
                 # scale base vector
-                v = bv * i  # check dataclass Vector.__mul__()
+                v = bv * i  # check Vector.__mul__()
                 # get the new position and check if valid
                 nx = x + v.x
                 ny = y + v.y
@@ -237,7 +241,7 @@ class MoveFinder:
                 item = b.get_item(nx, ny)
 
                 if item is None:
-                    if self.is_king_exposed(b, x, y, nx, ny):
+                    if self.is_king_exposed(b, p, x, y, nx, ny):
                         break
                     self.all_valid_moves[p].append(v)
 
@@ -248,43 +252,84 @@ class MoveFinder:
                     self.all_valid_moves[p].append(v)
                     break
 
-                i += 1
-
     def is_in_bounds(self, nx, ny):
         return 0 <= nx <= 7 and 0 <= ny <= 7
 
-    def is_king_exposed(self, b: Board, x, y, nx, ny):
-        """Checking if king is exposed after moving a piece. Make the move, then from the position of the king use Queen bvs and Knight bvs outwards from the king and if you find an OPPS it means king is exposed THEN revert the move"""
-        return False
-        possible_p = b.move(x, y, nx, ny)  # need to revert this move
+    def is_king_exposed(self, b: Board, p, x, y, nx, ny):
+        # move piece to check if king gets exposed, reverted at end
+        b.printb()
 
-        piece_to_move = b.get_item(x, y)
-        color_king = piece_to_move.color  # prev func makes sure this is a Piece obj
-
-        # Find Position of King w/ same color as Piece (x, y)
+        # get position of King
         for tmp_y, row in enumerate(b.field):
-            for tmp_x, i in enumerate(row):
-                if i.occ is None:
+            for tmp_x, square in enumerate(row):
+                if square.occ is None:
                     continue
-                if i.occ.type == PieceType.KING and i.occ.color == color_king:
-                    king_x = tmp_x
-                    king_y = tmp_y
+                if square.occ.type == PieceType.KING and square.occ.color == p.color:
+                    x_king, y_king = tmp_x, tmp_y
                     break
             else:
-                # will be called if the previous loop did not end with a `break`
                 continue
             break
-        ##
 
-        ## use Queen & Knight Vecs casting out of king_x, king_y
-        # qbvs = base_vectors[PieceType.QUEEN]
-        # kbvs = base_vectors[PieceType.KNIGHT]
-        # for qbv in qbvs:
-        # i = 1
-        # while True:
+        print(p, x, y, nx, ny)
+        possible_piece = b.move(x, y, nx, ny)
+        qbvs = base_vectors[PieceType.QUEEN]
+        nbvs = base_vectors[PieceType.KNIGHT]
 
-        ## revert move
-        # b.move(nx, ny, x, y)
-        # b.set_item(nx, ny, possible_p)
+        for bv in nbvs:
+            # not really new position of king but idk what to name
+            nx_king = x_king + bv.x
+            ny_king = y_king + bv.y
 
+            if not self.is_in_bounds(nx_king, ny_king):
+                continue
+
+            piece = b.get_item(nx_king, ny_king)
+            if piece is None:
+                continue
+            # enemy knight is at that point
+            if piece.color != p.color and piece.type == PieceType.KNIGHT:
+                b.move(nx, ny, x, y)
+                b.set_item(nx, ny, possible_piece)
+
+                return True
+
+        for bv in qbvs:
+            i = 0
+            while True:
+                i += 1
+                v = bv * i
+                nx_king = x_king + v.x
+                ny_king = y_king + v.y
+
+                if not self.is_in_bounds(nx_king, ny_king):
+                    break
+
+                piece = b.get_item(nx_king, ny_king)
+
+                if piece is None:
+                    continue
+
+                if piece.color == p.color:
+                    break
+
+                # Pawn needs extra check
+                if piece.type == PieceType.PAWN:
+                    if i < 1:
+                        pass
+                    else:
+                        c = 0 if piece.color == Colors.WHITE else 1
+                        if bv in base_vectors[piece.type][c][1:]:
+                            b.move(nx, ny, x, y)
+                            b.set_item(nx, ny, possible_piece)
+                            return True
+
+                if bv in base_vectors[piece.type]:
+                    b.move(nx, ny, x, y)
+                    b.set_item(nx, ny, possible_piece)
+                    return True
+
+        # revert premptive move
+        b.move(nx, ny, x, y)
+        b.set_item(nx, ny, possible_piece)
         return False

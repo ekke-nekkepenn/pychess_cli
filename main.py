@@ -13,11 +13,12 @@ file_name = [
     "layout_standard.csv",
     "layout_testing.csv",
     "test2.csv",
+    "test_exposed.csv",
 ]
 
 
 # Paths
-path_layout = Path(".") / "layouts" / file_name[2]
+path_layout = Path(".") / "layouts" / file_name[3]
 
 
 def main():

@@ -76,8 +76,7 @@ class Board:
         return self.field[y][x].occ
 
     def set_item(self, x, y, item: Piece | None):
-        # elements in field are each a list with one element
-        # acces item with [0]
+        # this just acceses Squares Class which stores Piece
         self.field[y][x].occ = item
 
     def remove_item(self, x, y) -> Piece | None:
@@ -87,8 +86,13 @@ class Board:
         return e
 
     def move(self, x, y, nx, ny) -> Piece | None:
-        # moves p to dest
+        # moves p to dest and returns what is at dest
         p = self.get_item(x, y)
+        if p is None:
+            print("cannot move None")
+            raise ValueError
+
+        self.set_item(x, y, None)
         dest = self.get_item(nx, ny)
         self.set_item(nx, ny, p)
         return dest
