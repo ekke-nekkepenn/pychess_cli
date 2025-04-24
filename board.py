@@ -21,6 +21,7 @@ Sprite_letters = {
         "Pawn": "bP",
         None: "{}",
     },
+    "Marked": "XX",
 }
 
 Sprite_glyphs = {
@@ -42,6 +43,7 @@ Sprite_glyphs = {
         "Pawn": "♟︎",
         None: "⬛",
     },
+    "Marked": "XX",
 }
 
 
@@ -69,8 +71,8 @@ class Board:
             field.append(tuple(row))
         return tuple(field)
 
-    def printb(self):
-        self.p.print_field(self.field, self.style)
+    def printb(self, marked=None):
+        self.p.print_field(self.field, self.style, marked)
 
     def get_item(self, x, y) -> Piece | None:
         return self.field[y][x].occ
@@ -102,17 +104,24 @@ class Printer:
     def __init__(self):
         pass
 
-    def print_field(self, field, style):
+    def print_field(self, field, style, marked=None):
         if style == "Char":
-            self.print_char(field)
+            self.print_char(field, marked)
         elif style == "Glyph":
-            self.print_glyphs(field)
+            self.print_glyphs(field, marked)
 
-    def print_char(self, field):
+    def print_char(self, field, marked):
+        if marked is None:
+            marked = []
+
         for y, row in enumerate(field):
             for x, square in enumerate(row):
                 piece = square.occ
-                if piece is None:
+
+                if (x, y) in marked:
+                    sprite = Sprite_letters["Marked"]
+
+                elif piece is None:
                     c = Colors.WHITE if (y + x) % 2 == 0 else Colors.BLACK
                     t = None
                     sprite = Sprite_letters[c][t]
@@ -123,11 +132,18 @@ class Printer:
                 print(sprite, end=" ")
             print()
 
-    def print_glyphs(self, field):
+    def print_glyphs(self, field, marked):
+        if marked is None:
+            marked = []
+
         for y, row in enumerate(field):
             for x, square in enumerate(row):
                 piece = square.occ
-                if piece is None:
+
+                if (x, y) in marked:
+                    sprite = Sprite_glyphs["Marked"]
+
+                elif piece is None:
                     c = Colors.WHITE if (y + x) % 2 == 0 else Colors.BLACK
                     t = None
                     sprite = Sprite_glyphs[c][t]

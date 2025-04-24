@@ -42,14 +42,46 @@ class Game:
             self.debug_to_files(all_valid_moves)
             print(f"{turn_player}'s Turn ({turn})")
             board.printb()
+
             # get player input
-            # origin = self.player_select_square()
-            # og_pos = self.convert_chess_nota_to_index(origin)
+            while True:
+                pos_og = self.player_selects_piece(turn_player, board, True)
+                piece = board.get_item(*pos_og)
+                moves = all_valid_moves[piece]
+                # turn vectors to coordinates
+                valid_coord = [(pos_og[0] + v.x, pos_og[1] + v.y) for v in moves]
+                board.printb(valid_coord)
 
-            # dest = self.player_select_square()
-            # new_pos = self.convert_chess_nota_to_index(dest)
+                pos_new = self.player_selects_piece(turn_player, board, False)
+                if (
+                    Vector(pos_og[0] - pos_new[0], pos_og[1] - pos_new[1])
+                    in all_valid_moves[piece]
+                ):
+                    break
+            board.move(pos_og, pos_new)
 
-            break
+            print(valid_coord)
+            board.printb(valid_coord)
+
+            nota_new = self.player_select_square()
+            pos_new = self.convert_chess_nota_to_index(nota_new)
+
+    def player_selects_piece(self, player, board: Board, flag=True):
+        while True:
+            # select player piece
+            pos = self.convert_chess_nota_to_index(self.player_select_square())
+
+            selected_piece = board.get_item(*pos)
+            if selected_piece is None:
+                print("You selected nothing. You get nothing! Good day good sir!")
+                continue
+
+            # for selecting own piece
+            if flag and selected_piece.color == player:
+                return pos
+            # for selecting enemy piece
+            if not flag and selected_piece.color != player:
+                return pos
 
     def debug_to_files(self, all_moves):
         with open("valid_moves.txt", "w") as f:
@@ -257,38 +289,44 @@ class MoveFinder:
 
     def is_king_exposed(self, b: Board, p, x, y, nx, ny):
         # move piece to check if king gets exposed, reverted at end
-        b.printb()
-
-        # get position of King
-        for tmp_y, row in enumerate(b.field):
-            for tmp_x, square in enumerate(row):
-                if square.occ is None:
-                    continue
-                if square.occ.type == PieceType.KING and square.occ.color == p.color:
-                    x_king, y_king = tmp_x, tmp_y
-                    break
-            else:
-                continue
-            break
-
-        print(p, x, y, nx, ny)
         possible_piece = b.move(x, y, nx, ny)
+
+        if p.type is PieceType.KING:
+            # if p is the King we know its possition
+            x_king = nx
+            y_king = ny
+
+        else:
+            # find the pos of King of p.color
+            for tmp_y, row in enumerate(b.field):
+                for tmp_x, square in enumerate(row):
+                    if square.occ is None:
+                        continue
+                    if (
+                        square.occ.type == PieceType.KING
+                        and square.occ.color == p.color
+                    ):
+                        x_king, y_king = tmp_x, tmp_y
+                        break
+                else:
+                    continue
+                break
+
         qbvs = base_vectors[PieceType.QUEEN]
         nbvs = base_vectors[PieceType.KNIGHT]
 
         for bv in nbvs:
-            # not really new position of king but idk what to name
-            nx_king = x_king + bv.x
-            ny_king = y_king + bv.y
+            x_test = x_king + bv.x
+            y_test = y_king + bv.y
 
-            if not self.is_in_bounds(nx_king, ny_king):
+            if not self.is_in_bounds(x_test, y_test):
                 continue
 
-            piece = b.get_item(nx_king, ny_king)
-            if piece is None:
+            test_piece = b.get_item(x_test, y_test)
+            if test_piece is None:
                 continue
             # enemy knight is at that point
-            if piece.color != p.color and piece.type == PieceType.KNIGHT:
+            if test_piece.color != p.color and test_piece.type == PieceType.KNIGHT:
                 b.move(nx, ny, x, y)
                 b.set_item(nx, ny, possible_piece)
 
@@ -299,37 +337,38 @@ class MoveFinder:
             while True:
                 i += 1
                 v = bv * i
-                nx_king = x_king + v.x
-                ny_king = y_king + v.y
+                x_test = x_king + v.x
+                y_test = y_king + v.y
 
-                if not self.is_in_bounds(nx_king, ny_king):
+                if not self.is_in_bounds(x_test, y_test):
                     break
 
-                piece = b.get_item(nx_king, ny_king)
+                test_piece = b.get_item(x_test, y_test)
 
-                if piece is None:
+                if test_piece is None:
                     continue
 
-                if piece.color == p.color:
+                if test_piece.color == p.color:
                     break
 
-                # Pawn needs extra check
-                if piece.type == PieceType.PAWN:
-                    if i < 1:
+                if test_piece.type == PieceType.PAWN:
+                    if i > 1:
                         pass
                     else:
-                        c = 0 if piece.color == Colors.WHITE else 1
-                        if bv in base_vectors[piece.type][c][1:]:
+                        c = 0 if test_piece.color == Colors.WHITE else 1
+                        if (bv * -1) in base_vectors[test_piece.type][c][1:]:
                             b.move(nx, ny, x, y)
                             b.set_item(nx, ny, possible_piece)
                             return True
 
-                if bv in base_vectors[piece.type]:
-                    b.move(nx, ny, x, y)
-                    b.set_item(nx, ny, possible_piece)
-                    return True
+                else:
+                    if test_piece.type == PieceType.KING and i > 1:
+                        pass
+                    elif bv in base_vectors[test_piece.type]:
+                        b.move(nx, ny, x, y)
+                        b.set_item(nx, ny, possible_piece)
+                        return True
 
-        # revert premptive move
         b.move(nx, ny, x, y)
         b.set_item(nx, ny, possible_piece)
         return False
