@@ -1,32 +1,27 @@
-from dataclasses import dataclass
+from pathlib import Path
+
+from player import Player
 from board import Board
 from colors import Colors
 from pieces import Piece, PieceType
-from dataclasses import dataclass
-
-# keys are coordinates on board and valuesa are a list of vectors
-# moves get recalculated after each turn
-
-
-@dataclass
-class Vector:
-    x: int
-    y: int
-
-    def __mul__(self, m):
-        return Vector(self.x * m, self.y * m)
+from vectors import Vector
 
 
 class Game:
-    def __init__(self):
+    def __init__(self, p1: Player, p2: Player, style):
+        self.p1 = p1
+        self.p2 = p2
+        self.board = Board(style)
         self.mfinder = MoveFinder()
+        self.layout_handler = LayoutHandler()
 
-    def run(self, board: Board):
+    def run(self):
         # setup things before game begins
-        player_1 = Colors.WHITE
-        player_2 = Colors.BLACK
 
-        turn = 0
+        player_1 = self.p1
+        player_2 = self.p2
+
+        turn_counter = 0
 
         """ move_history stores each move per turn. Moves are in this format [(x, y), (nx, ny), "Captured Piece?"]. 
         Old position to new position + captured piece if even"""
@@ -35,45 +30,56 @@ class Game:
 
         flag_run = True
         while flag_run:
-            all_valid_moves = self.mfinder.find_all_moves(board)
-            turn += 1
-            turn_player = player_1 if turn % 2 != 0 else player_2
+            # (Upkeep Step) Things to do before a Player Turn Starts
+            all_valid_moves = self.mfinder.find_all_moves(self.board)
+            # self.debug_to_files(all_valid_moves)
 
-            self.debug_to_files(all_valid_moves)
-            print(f"{turn_player}'s Turn ({turn})")
-            board.printb()
+            turn_counter += 1
+            turn_player = player_1 if turn_counter % 2 != 0 else player_2
+
+            print(f"{turn_player}'s Turn ({turn_counter})")
+            self.board.printb()
 
             # get player input
             while True:
-                pos_og = self.player_selects_piece(turn_player, board, True)
-                piece = board.get_item(*pos_og)
-                moves = all_valid_moves[piece]
-                # turn vectors to coordinates
-                valid_coord = [(pos_og[0] + v.x, pos_og[1] + v.y) for v in moves]
-                board.printb(valid_coord)
+                pos_og = self.player_selects_piece(turn_player, self.board, True)
+                piece = self.board.get_item(pos_og)
 
-                pos_new = self.player_selects_piece(turn_player, board, False)
-                if (
-                    Vector(pos_og[0] - pos_new[0], pos_og[1] - pos_new[1])
-                    in all_valid_moves[piece]
-                ):
+                piece_moves = all_valid_moves[piece]
+                # original position + each vector -> new position
+                valid_coord = [(pos_og + v) for v in piece_moves]
+
+                self.board.printb(valid_coord)
+
+                pos_new = self.convert_chess_nota_to_position(
+                    self.player_selects_square()
+                )
+
+                if (pos_og - pos_new) in piece_moves:
+                    """found a valid move"""
                     break
-            board.move(pos_og, pos_new)
+                else:
+                    print(
+                        f"Invalid move by {piece}. Cannot move from {pos_og} to {pos_new}\n\t{piece_moves}"
+                    )
+
+            self.board.move(pos_og, pos_new)
 
             print(valid_coord)
-            board.printb(valid_coord)
+            self.board.printb(valid_coord)
 
-            nota_new = self.player_select_square()
-            pos_new = self.convert_chess_nota_to_index(nota_new)
+            nota_new = self.player_selects_square()
+            pos_new = self.convert_chess_nota_to_position(nota_new)
 
+    # TODO refactor this bs. Just remake it ew
     def player_selects_piece(self, player, board: Board, flag=True):
         while True:
             # select player piece
-            pos = self.convert_chess_nota_to_index(self.player_select_square())
+            pos = self.convert_chess_nota_to_position(self.player_selects_square())
 
-            selected_piece = board.get_item(*pos)
+            selected_piece = board.get_item(pos)
             if selected_piece is None:
-                print("You selected nothing. You get nothing! Good day good sir!")
+                print("You selected nothing. You get nothing! Good day SIR!")
                 continue
 
             # for selecting own piece
@@ -83,18 +89,11 @@ class Game:
             if not flag and selected_piece.color != player:
                 return pos
 
-    def debug_to_files(self, all_moves):
-        with open("valid_moves.txt", "w") as f:
-            for k, v in all_moves.items():
-                f.write(f"{k}\n")
-                for i in v:
-                    f.write(f"\t{i}\n")
-
-    def player_select_square(self) -> str:
+    def player_selects_square(self) -> str:
         while True:
             ipt = input(": ")
             if len(ipt) != 2:
-                print("[a-h][1-8] e.g d4")
+                print("use this format: [a-h][1-8], for example: d4, h8, a7, etc.")
                 continue
 
             if ipt[0].lower() < "a" or ipt[0].lower() > "h":
@@ -106,17 +105,86 @@ class Game:
             break
         return ipt
 
-    def convert_chess_nota_to_index(self, nota):
-        # nota's first 2 chars HAVE TO be a LETTER[A-H] and DIGIT[1-8]
+    ## SAFE
+    def convert_chess_nota_to_position(self, nota):
+        # TODO error handling
         y = 8 - int(nota[1])
         x = ord(nota[0].lower()) - ord("a")
-        return x, y
+        return Vector(x, y)
 
-    def convert_index_to_chess_nota(self, idx):
-        # idx has 2 int each need to be btw 0-7
-        d = str(8 - idx[0])
-        c = str(int(ord("a") + idx[1]))
-        return c + d
+    def convert_position_to_chess_nota(self, position: Vector):
+        # TODO error handling
+        file = str(8 - position.y)
+        rank = str(int(ord("a") + position.x))
+        return f"{file}{rank}"
+
+    def debug_to_files(self, all_moves):
+        with open("valid_moves.txt", "w") as f:
+            for k, v in all_moves.items():
+                f.write(f"{k}\n")
+                for i in v:
+                    f.write(f"\t{i}\n")
+
+    ## SAFE
+
+
+## SAFE
+class LayoutHandler:
+    """A layout is defined as just a 8x8 2D array containing certain strings as elements
+    e.g 'wP', 'bR', '',  -> white pawn, black rood, empty space
+    """
+
+    def __init__(self):
+        self.paths = [
+            "layout_standard.csv",
+            "layout_testing.csv",
+            "test2.csv",
+            "test_exposed.csv",
+            "test_exposed_2.csv",
+        ]
+        self.path_to_layout = Path(".") / "layouts" / self.paths[0]
+        self.layout = []
+
+    def reset_layout(self):
+        self.layout = []
+
+    def get_layout(self):
+        with open(self.path_to_layout, "r") as f:
+            # split at newlines
+            for line in f.read().split():
+                # split at ','
+                self.layout.append(tuple(line.split(",")))
+
+    def apply_layout(self, board: Board):
+        for y, line in enumerate(self.layout):
+            for x, piece in enumerate(line):
+                # skip empty string -> ""
+                if not piece:
+                    continue
+
+                ptype = None
+                pcolor = None
+                # Get color and type e.g "bP" -> "Black" "Pawn"
+                pcolor = Colors.WHITE if piece[0].lower() == "w" else Colors.BLACK
+
+                # iter over Enum and check if first letter match
+                for type in PieceType:
+                    if type != "Knight":
+                        if piece[1].lower() == type[0].lower():
+                            ptype = type
+                            break
+                    # except Knight which uses 'N' as identifier
+                    else:
+                        ptype = type
+
+                if not pcolor or not ptype:
+                    # TODO error handling
+                    raise ValueError
+
+                board.set_item(Vector(x, y), Piece(pcolor, ptype))
+
+
+## SAFE
 
 
 # base vectors
@@ -132,7 +200,7 @@ v_UL = Vector(-1, -1)
 v_DL = Vector(-1, 1)
 
 # knight jumps
-# the letter after j is always |2|
+# the letter after j represents 2/-2
 v_jUR = Vector(-2, 1)
 v_jUL = Vector(-2, -1)
 v_jRU = Vector(-1, 2)
@@ -144,11 +212,8 @@ v_jLD = Vector(1, -2)
 
 
 base_vectors = {
-    # Moves are in (x, y)
-    # "Pawn"[0] white and [1] black
-    # "Pawn"[0][0] & [1][0] move vector
-    # "Pawn"[0][1-2] & [1][1-2] capture vectors
-    "Pawn": ((v_U, v_UR, v_UL), (v_D, v_DR, v_DL)),
+    #! PAWN's base_vectors * -1, if .color == Color.WHITE
+    "Pawn": (v_U, v_UR, v_UL),
     "Rook": (v_R, v_L, v_U, v_D),
     "Bishop": (v_UR, v_DR, v_UL, v_DL),
     "Queen": (v_U, v_D, v_R, v_L, v_UR, v_DR, v_UL, v_DL),
@@ -157,40 +222,45 @@ base_vectors = {
 }
 
 
+# TODO!! Refactor all of this ?
 # This whole class kinda works but checking if the king is exposed
 # for a Vector seems really challenging and repetitve
 class MoveFinder:
     def __init__(self):
-        # key[Piece]: value[list]
+        # key[Piece]: value[list[Vector...]]
         self.all_valid_moves = {}
 
     def find_all_moves(self, b: Board):
-        """This function does not find moves just bundles every move_finding_ function"""
+        """This function does not find moves just bundles every move_finding function"""
 
+        # empty out all_valid_moves for a fresh turn
         self.all_valid_moves = {}
-        for y, row in enumerate(b.field):
+        return {}
+
+        for y, row in enumerate(b.grid):
             for x, square in enumerate(row):
                 piece = square.occ
                 if piece is None:
                     continue
 
-                bvs = base_vectors[piece.type]
                 # cannot use dataclasses with same fields because for "hashability" they use the fields
                 # so 2 dataclass instances with exact same fields are treated as the same key
                 # they are though not the same in memory
+                pos = Vector(x, y)
+                bvs = base_vectors[piece.type]
                 self.all_valid_moves.setdefault(piece, [])
 
                 if piece.type == PieceType.PAWN:
-                    self.fm_pawn(b, piece, x, y, bvs)
-                    self.fm_pawn_capture(b, piece, x, y, bvs)
+                    self.fm_pawn(b, piece, pos, bvs)
+                    self.fm_pawn_capture(b, piece, pos, bvs)
                 elif piece.type in (PieceType.KING, PieceType.KNIGHT):
-                    self.fm_king_knight(b, piece, x, y, bvs)
+                    self.fm_king_knight(b, piece, pos, bvs)
                 else:
-                    self.fm_qbr(b, piece, x, y, bvs)
+                    self.fm_qbr(b, piece, pos, bvs)
 
         return self.all_valid_moves
 
-    def fm_pawn(self, b: Board, p, x, y, bvs):
+    def fm_pawn(self, b: Board, p, pos: Vector, bvs):
         """rules for how a Pawn can move:
         -can only move forward 1 square
         -can move 2 if not moved before (as first move)
@@ -200,80 +270,78 @@ class MoveFinder:
         bv = bvs[0][0] if p.color == Colors.WHITE else bvs[1][0]
 
         for i in range(1, (2 if p.status_moved else 3)):
-            v = bv * i
-            nx = x + v.x
-            ny = y + v.y
+            # bv: Vector
+            v: Vector = bv.scale(i)
+            new_pos = pos + v
 
-            if not self.is_in_bounds(nx, ny):
+            if not self.is_in_bounds(new_pos):
                 break
 
-            if b.get_item(nx, ny) is None:
-                if self.is_king_exposed(b, p, x, y, nx, ny):
+            if b.get_item(new_pos) is None:
+                if self.is_king_exposed(b, p, pos, new_pos):
                     break
+                # append VALID move
                 self.all_valid_moves[p].append(v)
 
             else:
                 break
 
-    def fm_pawn_capture(self, b: Board, p, x, y, bvs):
-        bvs = bvs[0][1:] if p.color == Colors.WHITE else bvs[1][1:]
+    def fm_pawn_capture(self, b: Board, p: Piece, pos: Vector, bvs):
+        cap_v = bvs[0][1:] if p.color == Colors.WHITE else bvs[1][1:]
 
-        for bv in bvs:
-            nx = x + bv.x
-            ny = y + bv.y
+        for v in cap_v:
+            new_pos = pos + v
 
-            if not self.is_in_bounds(nx, ny):
+            if not self.is_in_bounds(new_pos):
                 continue
 
-            item = b.get_item(nx, ny)
+            item = b.get_item(new_pos)
 
             if item is None or item.color == p.color:
                 continue
 
             else:
-                if self.is_king_exposed(b, p, x, y, nx, ny):
+                if self.is_king_exposed(b, p, pos, new_pos):
                     continue
 
-                self.all_valid_moves[p].append(bv)
+                self.all_valid_moves[p].append(v)
 
-    def fm_pawn_en_passant(self, b: Board, p, x, y, bvs):
-        """need to exstablish MOVE HISTORY and inspect the last move in it. If a pawn moved 2 sqrs from start pos then we en passant that bitch"""
+    def fm_pawn_en_passant(self, b: Board, p: Piece, pos: Vector, new_pos: Vector, bvs):
+        """need to establish MOVE HISTORY and inspect the last move in it. If a pawn moved 2 sqrs from start pos then we en passant that bitch"""
         raise NotImplementedError
 
-    def fm_king_knight(self, b: Board, p, x, y, bvs):
+    def fm_king_knight(self, b: Board, p: Piece, pos: Vector, bvs):
         for bv in bvs:
-            nx = x + bv.x
-            ny = y + bv.y
+            new_pos = pos + bv
 
-            if not self.is_in_bounds(nx, ny):
+            if not self.is_in_bounds(new_pos):
                 continue
 
-            item = b.get_item(nx, ny)
+            item = b.get_item(new_pos)
 
             if item is None or item.color != p.color:
-                if self.is_king_exposed(b, p, x, y, nx, ny):
+                if self.is_king_exposed(b, p, pos, new_pos):
                     continue
                 self.all_valid_moves[p].append(bv)
 
-    def fm_qbr(self, b: Board, p, x, y, bvs):
+    def fm_qbr(self, b: Board, p: Piece, pos: Vector, bvs):
         # iter over base vectors
         for bv in bvs:
             i = 0
             while True:
                 i += 1
                 # scale base vector
-                v = bv * i  # check Vector.__mul__()
+                v = bv.scale(i)
                 # get the new position and check if valid
-                nx = x + v.x
-                ny = y + v.y
+                new_pos = pos * v
 
-                if not self.is_in_bounds(nx, ny):
+                if not self.is_in_bounds(new_pos):
                     break
 
-                item = b.get_item(nx, ny)
+                item = b.get_item(new_pos)
 
                 if item is None:
-                    if self.is_king_exposed(b, p, x, y, nx, ny):
+                    if self.is_king_exposed(b, p, pos, new_pos):
                         break
                     self.all_valid_moves[p].append(v)
 
@@ -284,51 +352,57 @@ class MoveFinder:
                     self.all_valid_moves[p].append(v)
                     break
 
-    def is_in_bounds(self, nx, ny):
-        return 0 <= nx <= 7 and 0 <= ny <= 7
+    def is_in_bounds(self, pos: Vector):
+        return 0 <= pos.x <= 7 and 0 <= pos.y <= 7
 
-    def is_king_exposed(self, b: Board, p, x, y, nx, ny):
+    def is_king_exposed(self, b: Board, p: Piece, pos: Vector, new_pos: Vector):
         # move piece to check if king gets exposed, reverted at end
-        possible_piece = b.move(x, y, nx, ny)
+        possible_piece = b.move(pos, new_pos)
+
+        king_pos = None
 
         if p.type is PieceType.KING:
-            # if p is the King we know its possition
-            x_king = nx
-            y_king = ny
+            # if p is KING remember its position
+            king_pos = pos
 
         else:
             # find the pos of King of p.color
-            for tmp_y, row in enumerate(b.field):
-                for tmp_x, square in enumerate(row):
+            for y, row in enumerate(b.grid):
+                for x, square in enumerate(row):
                     if square.occ is None:
                         continue
                     if (
                         square.occ.type == PieceType.KING
                         and square.occ.color == p.color
                     ):
-                        x_king, y_king = tmp_x, tmp_y
+                        king_pos = Vector(x, y)
                         break
+                # if KING is NOT found keep going next rank
                 else:
                     continue
+                # because KING was found a 'break' was called so also break here
                 break
+
+        if not king_pos:
+            raise ValueError
 
         qbvs = base_vectors[PieceType.QUEEN]
         nbvs = base_vectors[PieceType.KNIGHT]
 
         for bv in nbvs:
-            x_test = x_king + bv.x
-            y_test = y_king + bv.y
+            test_pos = king_pos + bv
 
-            if not self.is_in_bounds(x_test, y_test):
+            if not self.is_in_bounds(test_pos):
                 continue
 
-            test_piece = b.get_item(x_test, y_test)
+            test_piece = b.get_item(test_pos)
             if test_piece is None:
                 continue
+
             # enemy knight is at that point
             if test_piece.color != p.color and test_piece.type == PieceType.KNIGHT:
-                b.move(nx, ny, x, y)
-                b.set_item(nx, ny, possible_piece)
+                b.move(new_pos, pos)
+                b.set_item(new_pos, possible_piece)
 
                 return True
 
@@ -336,14 +410,13 @@ class MoveFinder:
             i = 0
             while True:
                 i += 1
-                v = bv * i
-                x_test = x_king + v.x
-                y_test = y_king + v.y
+                v = bv.scale(i)
+                test_pos = king_pos + v
 
-                if not self.is_in_bounds(x_test, y_test):
+                if not self.is_in_bounds(test_pos):
                     break
 
-                test_piece = b.get_item(x_test, y_test)
+                test_piece = b.get_item(test_pos)
 
                 if test_piece is None:
                     continue
@@ -351,24 +424,25 @@ class MoveFinder:
                 if test_piece.color == p.color:
                     break
 
+                # TODO???? Huh? what is this
                 if test_piece.type == PieceType.PAWN:
                     if i > 1:
                         pass
                     else:
                         c = 0 if test_piece.color == Colors.WHITE else 1
                         if (bv * -1) in base_vectors[test_piece.type][c][1:]:
-                            b.move(nx, ny, x, y)
-                            b.set_item(nx, ny, possible_piece)
+                            b.move(new_pos, pos)
+                            b.set_item(new_pos, possible_piece)
                             return True
 
                 else:
                     if test_piece.type == PieceType.KING and i > 1:
                         pass
                     elif bv in base_vectors[test_piece.type]:
-                        b.move(nx, ny, x, y)
-                        b.set_item(nx, ny, possible_piece)
+                        b.move(new_pos, pos)
+                        b.set_item(new_pos, possible_piece)
                         return True
 
-        b.move(nx, ny, x, y)
-        b.set_item(nx, ny, possible_piece)
+        b.move(new_pos, pos)
+        b.set_item(new_pos, possible_piece)
         return False

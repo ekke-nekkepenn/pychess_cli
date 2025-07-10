@@ -1,29 +1,12 @@
 import sys
-from pathlib import Path
-from board import Board
-from game import Game
-from pieces import Piece, PieceType
+
 from colors import Colors
-
-# Custom Types
-# type Layout = tuple[tuple[str, ...], ...]
-
-
-file_name = [
-    "layout_standard.csv",
-    "layout_testing.csv",
-    "test2.csv",
-    "test_exposed.csv",
-    "test_exposed_2.csv",
-]
-
-
-# Paths
-path_layout = Path(".") / "layouts" / file_name[0]
+from player import Player
+from game import Game
 
 
 def main():
-    # TEST COMMENT
+    # TODO Let user select "style" through terminal after running
     # Style Selection
     style = "Char"  # default style
 
@@ -33,60 +16,15 @@ def main():
         elif sys.argv[1] == "c":
             style = "Char"
 
-    # Style Selection
+    # TODO Let user select names and colors
+    p1 = Player("Vendrick", Colors.WHITE)
+    p2 = Player("Gwyn", Colors.BLACK)
 
-    board = Board(style)
-    layout = get_layout(path_layout)
+    game = Game(p1, p2, style)
 
-    if not apply_layout(board, layout):
-        print("Failed applying layout.")
-        return
-
-    game = Game()
-    game.run(board)
-
-
-def get_layout(fp: Path):
-    with open(fp, "r") as f:
-        split_text = f.read().split()
-        layout = []
-        for string in split_text:
-            layout.append(tuple(string.split(",")))
-
-    return tuple(layout)
-
-
-def apply_layout(b: Board, layout) -> bool:
-    """Create Piece objects and fill up game board"""
-    # iterate over Layout
-    for y, line in enumerate(layout):
-        for x, e in enumerate(line):
-            # skip empty string -> ""
-            if not e:
-                continue
-
-            ptype = None
-            pcolor = None
-            # Get color and type e.g "bP" -> "Black" "Pawn"
-            pcolor = Colors.WHITE if e[0] == "w" else Colors.BLACK
-            # iter over Enum and check if first letter match
-            for t in PieceType:
-                if t != "Knight":
-                    if e[1] == t[0]:
-                        ptype = t
-                        break
-                # except Knight which uses 'N' as identifier
-                else:
-                    ptype = t
-
-            # check if failed for some reason
-            if pcolor == None or ptype == None:
-                return False
-
-            p = Piece(pcolor, ptype)
-            b.set_item(x, y, p)
-
-    return True
+    game.layout_handler.get_layout()
+    game.layout_handler.apply_layout(game.board)
+    game.run()
 
 
 if __name__ == "__main__":

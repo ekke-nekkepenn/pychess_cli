@@ -1,6 +1,8 @@
+from dataclasses import dataclass
+
 from colors import Colors
 from pieces import Piece, PieceType
-from dataclasses import dataclass
+from vectors import Vector
 
 Sprite_letters = {
     "White": {
@@ -49,72 +51,72 @@ Sprite_glyphs = {
 
 @dataclass
 class Square:
-    x: int
-    y: int
+    """just a cointainer for Piece instances"""
+
     occ: Piece | None = None  # occupant
 
 
 class Board:
-    def __init__(self, style="Char"):
-        self.field = self.__init_field__()
+    def __init__(self, style):
+        self.grid = self.__init_grid__()
         self.style = style
-        self.p = Printer()
+        self.printer = Printer()
 
-    def __init_field__(self) -> tuple[tuple[Square], ...]:
-        # 8x8 tuple with [None] filled
-        # return tuple([tuple([[None] for _ in range(8)]) for _ in range(8)])
-        field = []
+    def __init_grid__(self) -> tuple[tuple[Square]]:
+        grid = []
         for y in range(8):
             row = []
             for x in range(8):
-                row.append(Square(x, y))
-            field.append(tuple(row))
-        return tuple(field)
+                row.append(Square())
+            grid.append(tuple(row))
+        return tuple(grid)
 
     def printb(self, marked=None):
-        self.p.print_field(self.field, self.style, marked)
+        self.printer.print_grid(self.grid, self.style, marked)
 
-    def get_item(self, x, y) -> Piece | None:
-        return self.field[y][x].occ
+    # ACCESS methods
+    def get_item(self, pos: Vector) -> Piece | None:
+        return self.grid[pos.y][pos.x].occ
 
-    def set_item(self, x, y, item: Piece | None):
-        # this just acceses Squares Class which stores Piece
-        self.field[y][x].occ = item
+    def set_item(self, pos: Vector, item: Piece | None):
+        # this just accesses Squares Class which stores Piece
+        self.grid[pos.y][pos.x].occ = item
 
-    def remove_item(self, x, y) -> Piece | None:
-        e = self.field[y][x].occ
+    def remove_item(self, pos: Vector) -> Piece | None:
+        e = self.get_item(pos)
         if e:
-            self.field[y][x] = None
+            self.set_item(pos, None)
         return e
 
-    def move(self, x, y, nx, ny) -> Piece | None:
+    def move(self, pos_og: Vector, pos_new: Vector) -> Piece | None:
+        # TODO refactor for Vectors
         # moves p to dest and returns what is at dest
-        p = self.get_item(x, y)
+        p = self.get_item(pos_og)
         if p is None:
             print("cannot move None")
             raise ValueError
 
-        self.set_item(x, y, None)
-        dest = self.get_item(nx, ny)
-        self.set_item(nx, ny, p)
-        return dest
+        self.set_item(pos_og, None)
+        removed_item = self.get_item(pos_new)
+        self.set_item(pos_new, p)
+        return removed_item
 
 
 class Printer:
     def __init__(self):
         pass
 
-    def print_field(self, field, style, marked=None):
+    def print_grid(self, grid, style, marked=None):
         if style == "Char":
-            self.print_char(field, marked)
+            self.print_char(grid, marked)
         elif style == "Glyph":
-            self.print_glyphs(field, marked)
+            self.print_glyphs(grid, marked)
 
-    def print_char(self, field, marked):
+    def print_char(self, grid, marked):
         if marked is None:
             marked = []
 
-        for y, row in enumerate(field):
+        for y, row in enumerate(grid):
             for x, square in enumerate(row):
                 piece = square.occ
 
@@ -132,11 +134,11 @@ class Printer:
                 print(sprite, end=" ")
             print()
 
-    def print_glyphs(self, field, marked):
+    def print_glyphs(self, grid, marked):
         if marked is None:
             marked = []
 
-        for y, row in enumerate(field):
+        for y, row in enumerate(grid):
             for x, square in enumerate(row):
                 piece = square.occ
 
