@@ -7,15 +7,15 @@ class Vector:
     y: int
 
     # v is of type Vector
-    def __mul__(self, v):
+    def __mul__(self, v: "Vector"):
         return Vector(self.x * v.x, self.y * v.x)
 
-    def __add__(self, v):
+    def __add__(self, v: "Vector"):
         return Vector(self.x + v.x, self.y + v.y)
 
-    def __sub__(self, v):
+    def __sub__(self, v: "Vector"):
         return Vector(self.x - v.x, self.y - v.y)
 
     # misc vector methods
-    def scale(self, s):
+    def scale(self, s: int):
         return Vector(self.x * s, self.y * s)

@@ -1,4 +1,5 @@
 from enum import StrEnum
+from colors import Colors
 from dataclasses import dataclass
 
 
@@ -11,11 +12,10 @@ class PieceType(StrEnum):
     PAWN = "Pawn"
 
 
-#
 @dataclass
 class Piece:
-    color: str
-    type: str
+    color: Colors
+    type: PieceType
     status_moved = False
 
     # need custom hash function or else Piece() instances with same fields have same hash
