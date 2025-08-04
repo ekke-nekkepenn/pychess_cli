@@ -18,54 +18,18 @@ class Game:
     def run(self):
         # setup things before game begins
 
-        player_white = self.p1
-        player_black = self.p2
+        p_white = self.p1
+        p__black = self.p2
 
         turn_counter = 0
 
         flag_run = True
-        while flag_run:
-            # (Upkeep Step) Things to do before a Player Turn Starts
-            # all_valid_moves = self.mfinder.find_all_moves(self.board)
-            all_valid_moves = {}
-            # self.debug_to_files(all_valid_moves)
-
-            turn_counter += 1
-            turn_player = player_white if turn_counter % 2 != 0 else player_black
-
-            # print(f"{turn_player}'s Turn ({turn_counter})")
-            # self.board.printb()
-
-            # get player input
-            while True:
-                pos_og = self.player_selects_piece(turn_player, self.board, True)
-                piece = self.board.get_item(pos_og)
-
-                piece_moves = all_valid_moves[piece]
-                # original position + each vector -> new position
-                valid_coord = [(pos_og + v) for v in piece_moves]
-
-                self.board.printb(valid_coord)
-
-                pos_new = self.convert_chess_nota_to_position(
-                    self.player_selects_square()
-                )
-
-                if (pos_og - pos_new) in piece_moves:
-                    """found a valid move"""
-                    break
-                else:
-                    print(
-                        f"Invalid move by {piece}. Cannot move from {pos_og} to {pos_new}\n\t{piece_moves}"
-                    )
-
-            self.board.move(pos_og, pos_new)
-
-            print(valid_coord)
-            self.board.printb(valid_coord)
-
-            nota_new = self.player_selects_square()
-            pos_new = self.convert_chess_nota_to_position(nota_new)
+        piece = self.board.get_item(Vector(1, 0))
+        self.mfinder.create_root_nodes()
+        self.mfinder.find_adjacent_nodes(piece)
+        print(piece)
+        root_node = self.mfinder.root_nodes[piece]
+        root_node.print_node_positions_DFS()
 
     # TODO refactor this bs. Just remake it ew
     def player_selects_piece(self, player, board: Board, flag=True):
@@ -259,15 +223,26 @@ def get_base_vectors(piece: Piece) -> tuple[Vector]:
 
 
 class Node:
-    def __init__(self, position: Vector, next_node: "Node | None" = None):
+    def __init__(self, position: Vector):
         self.position = position
         self.adjacent_nodes = []
+
+    def add_node(self, node):
+        self.adjacent_nodes.append(node)
+
+    def print_node_positions_DFS(self):
+        for n in self.adjacent_nodes:
+            print(n.position)
+            n.print_node_positions_DFS()
 
 
 class MoveFinder:
     def __init__(self, board: Board):
         self.board = board
         self.root_nodes = {}  # k: Piece, v: Node
+
+    def is_in_bounds(self, pos: Vector) -> bool:
+        return 0 <= pos.x <= 7 and 0 <= pos.y <= 7
 
     def create_root_nodes(self):
         self.root_nodes = {}
@@ -279,5 +254,88 @@ class MoveFinder:
                 self.root_nodes.setdefault(square.occ, Node(Vector(x, y)))
 
     def find_adjacent_nodes(self, piece: Piece):
-        root_node = self.root_nodes[piece]
         base_vectors = get_base_vectors(piece)
+
+        if piece.type in (PieceType.QUEEN, PieceType.BISHOP, PieceType.ROOK):
+            self.find_adjacent_nodes_QBR(piece, base_vectors)
+        if piece.type in (PieceType.KING, PieceType.KNIGHT):
+            self.find_adjacent_nodes_KN(piece, base_vectors)
+        if piece.type == PieceType.PAWN:
+            self.find_adjacent_nodes_PAWN(piece, base_vectors)
+
+    def find_adjacent_nodes_QBR(self, piece: Piece, base_vectors: tuple[Vector]):
+        """Iterate over each base_vector.
+        Inside those iterations in a while loop scale the vector incrementally by 1
+        each run to find if the next position is valid.
+        """
+        root_node = self.root_nodes[piece]
+
+        for bv in base_vectors:
+            current_node = root_node
+            new_pos = current_node.position + bv
+            while self.is_in_bounds(new_pos):
+                # check if new pos unoccupied
+                test_piece = self.board.get_item(new_pos)
+
+                if test_piece is None:
+                    adj_node = Node(new_pos)
+                    current_node.add_node(adj_node)
+                    current_node = adj_node
+
+                elif test_piece.color == piece.color:
+                    break
+
+                elif test_piece.color != piece.color:
+                    current_node.add_node(Node(new_pos))
+                    break
+
+                else:
+                    print("SOMETHING HORRIBLE HAPPENED.A ABORT EVERYTHING")
+
+                new_pos = current_node.position + bv
+
+    def find_adjacent_nodes_KN(self, piece: Piece, base_vectors: tuple[Vector]):
+        """this function does not find castling for the king"""
+        root_node = self.root_nodes[piece]
+
+        for bv in base_vectors:
+            new_pos = root_node.position + bv
+            if not self.is_in_bounds(new_pos):
+                continue
+
+            test_piece = self.board.get_item(new_pos)
+
+            if test_piece is None or test_piece.color != piece.color:
+                root_node.add_node(Node(new_pos))
+
+    def find_adjacent_nodes_PAWN(self, piece: Piece, base_vectors: tuple[Vector]):
+        """Pawn has some shenanigans. First vector in base_vector is its normal move vector. The next two are capture vectors"""
+        root_node = self.root_nodes[piece]
+        move_vector = base_vectors[0]
+        capture_vectors = base_vectors[1:]
+
+        # cursed code but i like it lol
+        current_node = root_node
+        for s in range(1, piece.unmoved + 2):
+            new_pos = current_node.position + move_vector
+            if not self.is_in_bounds(new_pos):
+                continue
+
+            test_piece = self.board.get_item(new_pos)
+
+            if test_piece is None:
+                adj_node = Node(new_pos)
+                current_node.add_node(adj_node)
+                current_node = adj_node
+
+        for cv in capture_vectors:
+            new_pos = root_node.position + cv
+            if not self.is_in_bounds(new_pos):
+                continue
+
+            test_piece = self.board.get_item(new_pos)
+
+            if test_piece is None or test_piece.color == piece.color:
+                continue
+
+            root_node.add_node(new_pos)
