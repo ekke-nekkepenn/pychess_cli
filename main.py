@@ -20,10 +20,9 @@ def main():
     # TODO Let user select names and colors
     p1 = Player("Vendrick", Colors.WHITE)
     p2 = Player("Gwyn", Colors.BLACK)
+
     board = Board(style)
-
     game = Game(p1, p2, board)
-
     game.layout_handler.load_layout()
     game.layout_handler.apply_layout(game.board)
     game.run()

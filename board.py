@@ -57,7 +57,7 @@ class Square:
 
 
 class Board:
-    def __init__(self, style):
+    def __init__(self, style="Char"):
         self.grid = self.__init_grid__()
         self.style = style
         self.printer = Printer()

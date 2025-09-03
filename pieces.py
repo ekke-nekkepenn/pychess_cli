@@ -16,7 +16,7 @@ class PieceType(StrEnum):
 class Piece:
     color: Colors
     type: PieceType
-    status_moved = False
+    unmoved = True
 
     # need custom hash function or else Piece() instances with same fields have same hash
     def __hash__(self):
