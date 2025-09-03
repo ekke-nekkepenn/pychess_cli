@@ -19,3 +19,4 @@ class Vector:
     # misc vector methods
     def scale(self, s: int):
         return Vector(self.x * s, self.y * s)
+        

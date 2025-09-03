@@ -12,10 +12,18 @@ def main():
     style = "Char"  # default style
 
     if len(sys.argv) > 1:
-        if sys.argv[1] == "g":
+        if sys.argv[1] == "-g":
             style = "Glyph"
-        elif sys.argv[1] == "c":
+        elif sys.argv[1] == "-c":
             style = "Char"
+        elif sys.argv[1] in ("-h", "--help"):
+            print("Usage: python main.py [flag]")
+            print("\t-g\tUse Unicode Symbols (Glyphs)")
+            print("\t-c\tUse ASCII characters. Is the default flag")
+            print("\t-h\tPrint this Help message")
+            print("\t--help\tPrint this Help message")
+
+            return
 
     # TODO Let user select names and colors
     p1 = Player("Vendrick", Colors.WHITE)

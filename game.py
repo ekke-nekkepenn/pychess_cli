@@ -3,8 +3,8 @@ from pathlib import Path
 from player import Player
 from board import Board
 from colors import Colors
-from pieces import Piece, PieceType
 from vectors import Vector
+from pieces import Piece, PieceType, ALL_BASE_VECTORS
 
 
 class Game:
@@ -32,7 +32,8 @@ class Game:
             self.board.printb()
 
             print("Select your Piece")
-            self.debug_to_files(self.mfinder.root_nodes)
+            # self.debug_to_files(self.mfinder.root_nodes)
+            # self.layout_handler.layout_to_file(self.board, Path("board_state.csv"))
             break
             pos = self.player_selects_piece(turn_player)
 
@@ -83,16 +84,12 @@ class Game:
     def debug_to_files(self, all_moves, fp="valid_moves.txt"):
         with open(fp, "w") as f:
             for piece, root_nodes in all_moves.items():
-                f.write(f"{piece}\n")
+                f.write(f"{piece.type}{piece.color}\n")
                 root_nodes.print_nodes(fp=f)
                 print("\n", file=f)
 
 
 class LayoutHandler:
-    """A layout is defined as just a 8x8 2D array containing certain strings as elements
-    e.g 'wP', 'bR', '',  -> white pawn, black rood, empty space
-    """
-
     def __init__(self):
         self.paths = [
             "layout_standard.csv",
@@ -117,7 +114,7 @@ class LayoutHandler:
     def apply_layout(self, board: Board):
         for y, line in enumerate(self.layout):
             for x, piece in enumerate(line):
-                # skip empty string -> ""
+                # piece HERE is just a string like "wP", "bQ" or ""
                 if not piece:
                     continue
 
@@ -141,6 +138,7 @@ class LayoutHandler:
                     print("applying layout failed!")
                     raise ValueError
 
+                # instantiate Piece obj and set it on the board
                 board.set_item(Vector(x, y), Piece(pcolor, ptype))
 
     def layout_to_string(self, board: Board) -> str:
@@ -149,30 +147,17 @@ class LayoutHandler:
             for square in rank:
                 if square.occ is None:
                     pass
-
                 else:
-                    if square.occ.color == Colors.WHITE:
-                        layout_string += "w"
-                    elif square.occ.color == Colors.BLACK:
-                        layout_string += "b"
-
-                    if square.occ.type == PieceType.PAWN:
-                        layout_string += "P"
-                    elif square.occ.type == PieceType.ROOK:
-                        layout_string += "R"
-                    elif square.occ.type == PieceType.KNIGHT:
-                        layout_string += "N"
-                    elif square.occ.type == PieceType.BISHOP:
-                        layout_string += "B"
-                    elif square.occ.type == PieceType.QUEEN:
-                        layout_string += "Q"
-                    elif square.occ.type == PieceType.KING:
-                        layout_string += "K"
+                    layout_string += (
+                        f"{square.occ.get_color_symbol()}{square.occ.get_symbol()}"
+                    )
 
                 layout_string += ","
 
-            # remove last comma in a line with a newline
+            # remove last ',' in a line with a newline
             layout_string = layout_string[:-1] + "\n"
+        # get rid of last '\n' char
+        layout_string = layout_string[:-1]
         return layout_string
 
     def layout_to_file(self, board: Board, fp: Path):
@@ -180,48 +165,19 @@ class LayoutHandler:
         with open(fp, "w") as f:
             f.write(layout_string)
 
+
 class MoveHistory:
     def __init__(self):
         self.mh = []
 
-    def add_move(self, )
+    def add_move(self):
+        raise NotImplementedError
 
-#TODO if nothing else uses this function except Node just make it a method
-def get_base_vectors(piece: Piece) -> tuple[Vector]:
+
+# TODO if nothing else uses this function except Node just make it a method
+def get_base_vectors(piece: Piece):
     """This function just handles the case for a pawn whose vectors depend on its colors"""
-    # Shared Vectors
-    v_U = Vector(0, -1)
-    v_D = Vector(0, 1)
-    v_R = Vector(1, 0)
-    v_L = Vector(-1, 0)
-
-    v_UR = Vector(1, -1)
-    v_DR = Vector(1, 1)
-    v_UL = Vector(-1, -1)
-    v_DL = Vector(-1, 1)
-
-    base_vectors = {
-        PieceType.PAWN: (
-            v_D,
-            v_DR,
-            v_DL,
-        ),  # need to multiply each by -1 for other direction
-        PieceType.ROOK: (v_D, v_U, v_R, v_L),
-        PieceType.KNIGHT: (
-            Vector(2, 1),
-            Vector(2, -1),
-            Vector(-2, 1),
-            Vector(-2, -1),
-            Vector(1, 2),
-            Vector(1, -2),
-            Vector(-1, 2),
-            Vector(-1, -2),
-        ),
-        PieceType.BISHOP: (v_DR, v_DL, v_UR, v_UL),
-        PieceType.QUEEN: (v_D, v_U, v_R, v_L, v_DR, v_DL, v_UR, v_UL),
-        PieceType.KING: (v_D, v_U, v_R, v_L, v_DR, v_DL, v_UR, v_UL),
-    }
-    bvs = base_vectors[piece.type]
+    bvs = ALL_BASE_VECTORS[piece.type]
     if piece.type is PieceType.PAWN:
         direction = 1 if piece.color == Colors.BLACK else -1
         if direction == -1:
@@ -233,14 +189,17 @@ class Node:
     def __init__(self, position: Vector):
         self.position = position
         # only the root node has multiple adjacent nodes.
-        # child nodes have 0 ajd nodes or 1
+        # child nodes have 0-1 adj_nodes
         self.adjacent_nodes = []
 
     def add_node(self, node: "Node"):
         self.adjacent_nodes.append(node)
 
     def print_nodes(self, level=0, fp=None):
-        print(f"{"\t"*level}{self.position}, level: {level}", file=fp)
+        print(
+            f"{"\t"*level}({self.position.x},{self.position.y})",
+            file=fp,
+        )
         for n in self.adjacent_nodes:
             n.print_nodes(level=(level + 1), fp=fp)
 
@@ -274,11 +233,8 @@ class MoveFinder:
             self.find_adjacent_nodes_KNIGHT(piece, base_vectors)
         elif piece.type == PieceType.PAWN:
             self.find_adjacent_nodes_PAWN(piece, base_vectors)
-        else:
-            print(piece)
-            raise ValueError
 
-    def find_adjacent_nodes_KING(self, piece: Piece, base_vectors: tuple[Vector]):
+    def find_adjacent_nodes_KING(self, piece: Piece, base_vectors):
         root_node = self.root_nodes[piece]
         for bv in base_vectors:
             new_pos = root_node.position + bv
@@ -290,7 +246,7 @@ class MoveFinder:
             root_node.add_node(Node(root_node.position - Vector(2, 0)))
             root_node.add_node(Node(root_node.position + Vector(2, 0)))
 
-    def find_adjacent_nodes_QBR(self, piece: Piece, base_vectors: tuple[Vector]):
+    def find_adjacent_nodes_QBR(self, piece: Piece, base_vectors):
         root_node = self.root_nodes[piece]
         for bv in base_vectors:
             current_node = root_node
@@ -301,7 +257,7 @@ class MoveFinder:
                 current_node = adj_node
                 new_pos = current_node.position + bv
 
-    def find_adjacent_nodes_KNIGHT(self, piece: Piece, base_vectors: tuple[Vector]):
+    def find_adjacent_nodes_KNIGHT(self, piece: Piece, base_vectors):
         """this function does not find castling for the king"""
         root_node = self.root_nodes[piece]
 
@@ -310,8 +266,8 @@ class MoveFinder:
             if self.is_in_bounds(new_pos):
                 root_node.add_node(Node(new_pos))
 
-    def find_adjacent_nodes_PAWN(self, piece: Piece, base_vectors: tuple[Vector]):
-        """Pawn has some shenanigans. First vector in base_vector is its normal move vector. 
+    def find_adjacent_nodes_PAWN(self, piece: Piece, base_vectors):
+        """Pawn has some shenanigans. First vector in base_vectors is its normal move vector.
         The next two are capture vectors"""
         root_node = self.root_nodes[piece]
         move_vector = base_vectors[0]
