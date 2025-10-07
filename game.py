@@ -1,10 +1,19 @@
 from pathlib import Path
+from enum import Enum
 
 from player import Player
 from board import Board
 from colors import Colors
 from vectors import Vector
 from pieces import Piece, PieceType, ALL_BASE_VECTORS
+
+
+class State(Enum):
+    UPKEEP = 1
+    SELECTION = 2
+    VALIDATION = 3
+    END_PHASE = 4
+
 
 
 class Game:
@@ -22,38 +31,54 @@ class Game:
         turn_counter = 0
         running = True
         move_history = []
+        game_state = State.UPKEEP
 
+        ## GAME LOOP
+        ##
         while running:
-            # find possible moves for turn
+
+            # TODO fix this up
+            if State.UPKEEP == game_state:
+                self.mfinder.create_nodes()
+                self.mfinder.filter_blocked_nodes()
+                turn_player = p_white if turn_counter % 2 != 0 else p_black
+
+                game_state = State.SELECTION
+
+            if State.SELECTION == game_state:
+                game_state = State.VALIDATION
+
+            if State.VALIDATION == game_state:
+                pass
+
+
+            if State.END_PHASE == game_state:
+                game_state = State.UPKEEP
+
+
+
+
+            # UPKEEP STUFF
             self.mfinder.create_nodes()
+            self.mfinder.filter_blocked_nodes()
 
             turn_player = p_white if turn_counter % 2 != 0 else p_black
             print(f"{turn_player}'s Turn")
             self.board.printb()
 
-            print("Select your Piece")
-            # self.debug_to_files(self.mfinder.root_nodes)
-            # self.layout_handler.layout_to_file(self.board, Path("board_state.csv"))
-            break
-            pos = self.player_selects_piece(turn_player)
 
-    def player_selects_piece(self, player, flag=True):
-        while True:
-            pos = self.convert_chess_nota_to_vector(self.player_selects_square())
+            print("Select your Piece:", end=" ")
+            self.debug_to_files(self.mfinder.root_nodes)
 
+            pos = self.player_selects_square()
             selected_piece = self.board.get_item(pos)
-            if selected_piece is None:
-                print("You selected nothing. You get nothing! Good day SIR!")
-                continue
+            if selected_piece is None or selected_piece.color != turn_player.color:
 
-            if flag and selected_piece.color == player:
-                print("Please select your own piece.")
-                return pos
-            if not flag and selected_piece.color != player:
-                print("Please select an opponent's piece.")
-                return pos
 
-    def player_selects_square(self) -> str:
+
+    
+
+    def player_selects_square(self) -> Vector:
         while True:
             ipt = input(": ")
             if len(ipt) != 2:
@@ -67,7 +92,7 @@ class Game:
                 continue
 
             break
-        return ipt
+        return self.convert_chess_nota_to_vector(ipt)
 
     def convert_chess_nota_to_vector(self, nota):
         # TODO error handling
@@ -87,6 +112,10 @@ class Game:
                 f.write(f"{piece.type}{piece.color}\n")
                 root_nodes.print_nodes(fp=f)
                 print("\n", file=f)
+
+    def save_board_state(self):
+        self.layout_handler.layout_to_file(self.board, Path("board_state.csv"))
+        return self.layout_handler.layout_to_string
 
 
 class LayoutHandler:
@@ -186,10 +215,11 @@ def get_base_vectors(piece: Piece):
 
 
 class Node:
-    def __init__(self, position: Vector):
-        self.position = position
+    def __init__(self, pos: Vector, parent):
+        self.pos = pos
         # only the root node has multiple adjacent nodes.
         # child nodes have 0-1 adj_nodes
+        self.parent = parent
         self.adjacent_nodes = []
 
     def add_node(self, node: "Node"):
@@ -197,76 +227,82 @@ class Node:
 
     def print_nodes(self, level=0, fp=None):
         print(
-            f"{"\t"*level}({self.position.x},{self.position.y})",
+            f"{"\t"*level}{self} parent {self.parent}",
             file=fp,
         )
         for n in self.adjacent_nodes:
             n.print_nodes(level=(level + 1), fp=fp)
 
+    def __str__(self):
+        return f"({self.pos.x}, {self.pos.y})"
+
 
 class MoveFinder:
     def __init__(self, board: Board):
         self.board = board
-        self.root_nodes = {}  # k: Piece, v: Node
+        self.root_nodes = {}  # k: Piece, v:
+        self.king_black = None
+        self.king_white = None
 
     def is_in_bounds(self, pos: Vector) -> bool:
         return 0 <= pos.x <= 7 and 0 <= pos.y <= 7
 
     def create_nodes(self):
+        # Whole Move finding starts here
         self.root_nodes = {}
         for y, line in enumerate(self.board.grid):
             for x, square in enumerate(line):
                 if square.occ is None:
                     continue
 
-                self.root_nodes.setdefault(square.occ, Node(Vector(x, y)))
-                self.find_pseudo_legal_adjacent_nodes(square.occ)
+                if square.occ.type == PieceType.KING:
+                    if square.occ.color == Colors.BLACK:
+                        self.king_black = square.occ
+                    else:
+                        self.king_white = square.occ
 
-    def find_pseudo_legal_adjacent_nodes(self, piece: Piece):
+                self.root_nodes.setdefault(square.occ, Node(Vector(x, y), None))
+                self.find_pseudo_moves(square.occ)
+
+    # PSEUDO MOVE BLOCK
+    def find_pseudo_moves(self, piece: Piece):
         base_vectors = get_base_vectors(piece)
 
+        if piece.type in (PieceType.KING, PieceType.KNIGHT):
+            self.add_pseudo_moves_KN(piece, base_vectors)
         if piece.type in (PieceType.QUEEN, PieceType.BISHOP, PieceType.ROOK):
-            self.find_adjacent_nodes_QBR(piece, base_vectors)
-        elif piece.type == PieceType.KING:
-            self.find_adjacent_nodes_KING(piece, base_vectors)
-        elif piece.type == PieceType.KNIGHT:
-            self.find_adjacent_nodes_KNIGHT(piece, base_vectors)
-        elif piece.type == PieceType.PAWN:
-            self.find_adjacent_nodes_PAWN(piece, base_vectors)
+            self.add_pseudo_moves_QBR(piece, base_vectors)
+        if piece.type == PieceType.PAWN:
+            self.add_pseudo_moves_P(piece, base_vectors)
 
-    def find_adjacent_nodes_KING(self, piece: Piece, base_vectors):
+    def add_pseudo_moves_KN(self, piece: Piece, base_vectors):
         root_node = self.root_nodes[piece]
+
         for bv in base_vectors:
-            new_pos = root_node.position + bv
+            new_pos = root_node.pos + bv
             if self.is_in_bounds(new_pos):
-                root_node.add_node(Node(new_pos))
+                adj_node = Node(new_pos, root_node)
+                root_node.add_node(adj_node)
+                parent_node = adj_node
 
         # add castling nodes
-        if piece.unmoved:
-            root_node.add_node(Node(root_node.position - Vector(2, 0)))
-            root_node.add_node(Node(root_node.position + Vector(2, 0)))
+        if piece.type == PieceType.KING and piece.unmoved:
+            root_node.add_node(Node(root_node.pos - Vector(2, 0), root_node))
 
-    def find_adjacent_nodes_QBR(self, piece: Piece, base_vectors):
+            root_node.add_node(Node(root_node.pos + Vector(2, 0), root_node))
+
+    def add_pseudo_moves_QBR(self, piece: Piece, base_vectors):
         root_node = self.root_nodes[piece]
         for bv in base_vectors:
+            new_pos = root_node.pos + bv
             current_node = root_node
-            new_pos = current_node.position + bv
             while self.is_in_bounds(new_pos):
-                adj_node = Node(new_pos)
+                adj_node = Node(new_pos, current_node)
                 current_node.add_node(adj_node)
                 current_node = adj_node
-                new_pos = current_node.position + bv
+                new_pos = current_node.pos + bv
 
-    def find_adjacent_nodes_KNIGHT(self, piece: Piece, base_vectors):
-        """this function does not find castling for the king"""
-        root_node = self.root_nodes[piece]
-
-        for bv in base_vectors:
-            new_pos = root_node.position + bv
-            if self.is_in_bounds(new_pos):
-                root_node.add_node(Node(new_pos))
-
-    def find_adjacent_nodes_PAWN(self, piece: Piece, base_vectors):
+    def add_pseudo_moves_P(self, piece: Piece, base_vectors):
         """Pawn has some shenanigans. First vector in base_vectors is its normal move vector.
         The next two are capture vectors"""
         root_node = self.root_nodes[piece]
@@ -276,13 +312,58 @@ class MoveFinder:
         # cursed code but i like it lol
         current_node = root_node
         for s in range(1, piece.unmoved + 2):
-            new_pos = current_node.position + move_vector
+            new_pos = current_node.pos + move_vector
             if self.is_in_bounds(new_pos):
-                adj_node = Node(new_pos)
+                adj_node = Node(new_pos, current_node)
                 current_node.add_node(adj_node)
                 current_node = adj_node
 
         for cv in capture_vectors:
-            new_pos = root_node.position + cv
+            new_pos = root_node.pos + cv
             if self.is_in_bounds(new_pos):
-                root_node.add_node(Node(new_pos))
+                root_node.add_node(Node(new_pos, root_node))
+
+    # PSEUDO MOVE BLOCK END
+
+    # COLLISION BLOCK
+    def filter_blocked_nodes(self):
+        for piece, root_node in self.root_nodes.items():
+            # collision type 1
+
+            if piece.type == PieceType.KING:
+                pass
+
+            if piece.type in (
+                PieceType.QUEEN,
+                PieceType.BISHOP,
+                PieceType.ROOK,
+            ):
+                pass
+                # self.filter_collision_type1(root_node, piece)
+
+            # collision type 2
+            if piece.type == PieceType.KNIGHT:
+                self.filter_collision_type2(root_node, piece)
+            # collision type 31
+            if piece.type == PieceType.PAWN:
+                pass
+
+    # TODO finish the filter
+    def filter_collision_type1(self, node, piece):
+        for n in node.adjacent_nodes:
+            p = self.board.get_item(n.pos)
+            if p is None or p.color != piece.color:
+                # call func rec
+                self.filter_collision_type1(n, piece)
+            else:
+                node.adjacent_nodes.remove(n)
+
+    def filter_collision_type2(self, node, piece):
+        for n in node.adjacent_nodes:
+            p = self.board.get_item(n.pos)
+            if p is None or p.color != piece.color:
+                pass
+            else:
+                node.adjacent_nodes.remove(n)
+
+    # COLLISION BLOCK END

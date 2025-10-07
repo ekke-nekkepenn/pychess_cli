@@ -83,14 +83,17 @@ class Board:
         self.grid[pos.y][pos.x].occ = item
 
     def remove_item(self, pos: Vector) -> Piece | None:
-        e = self.get_item(pos)
-        if e:
+        p = self.get_item(pos)
+        if p:
             self.set_item(pos, None)
-        return e
+        return p
 
     def move(self, pos_og: Vector, pos_new: Vector) -> Piece | None:
-        # TODO refactor for Vectors
-        # moves p to dest and returns what is at dest
+        # moves p to dest and return what is at dest
+        if pos_og == pos_new:
+            print("Cannot move to the same square")
+            raise ValueError("Origin and destination squares are the same.")
+
         p = self.get_item(pos_og)
         if p is None:
             print("cannot move None")
