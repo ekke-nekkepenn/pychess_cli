@@ -1,5 +1,5 @@
 from pathlib import Path
-from enum import Enum
+from enum import Enum, auto
 
 from player import Player
 from board import Board
@@ -9,101 +9,131 @@ from pieces import Piece, PieceType, ALL_BASE_VECTORS
 
 
 class State(Enum):
-    UPKEEP = 1
-    SELECTION = 2
-    VALIDATION = 3
-    END_PHASE = 4
-
+    UPKEEP = auto()
+    SELECT_PIECE = auto()
+    SELECT_DEST = auto()
+    END_PHASE = auto()
+    SURRENDER = auto()
+    GAME_END = auto()
 
 
 class Game:
-    def __init__(self, p1: Player, p2: Player, board: Board):
-        self.p1 = p1
-        self.p2 = p2
+    def __init__(self, p_white: Player, p_black: Player, board: Board):
+        self.p_white = p_white
+        self.p_black = p_black
         self.board = board
         self.mfinder = MoveFinder(self.board)
         self.layout_handler = LayoutHandler()
 
     def run(self):
-        # setup things before game begins
-        p_white = self.p1
-        p_black = self.p2
-        turn_counter = 0
+        # setup vars before game begins
+        turn_player = self.p_white
+        turn_counter = 1
         running = True
         move_history = []
         game_state = State.UPKEEP
+
+        selected_piece = None
+        pos_og = None
+        pos_new = None
+        try_vector = None
 
         ## GAME LOOP
         ##
         while running:
 
-            # TODO fix this up
+            self.board.printb()
+
+            # -----------------------------------------------------------------------
             if State.UPKEEP == game_state:
                 self.mfinder.create_nodes()
                 self.mfinder.filter_blocked_nodes()
-                turn_player = p_white if turn_counter % 2 != 0 else p_black
 
-                game_state = State.SELECTION
+                turn_player = self.p_white if turn_counter % 2 != 0 else self.p_black
 
-            if State.SELECTION == game_state:
-                game_state = State.VALIDATION
+                game_state = State.SELECT_PIECE
 
-            if State.VALIDATION == game_state:
-                pass
+            # -----------------------------------------------------------------------
+            elif State.SELECT_PIECE == game_state:
+                ipt = self.player_input()
 
+                if ipt == "x":
+                    print("cannot cancel action")
+                    continue
 
-            if State.END_PHASE == game_state:
+                if ipt == "s":
+                    game_state = State.SURRENDER
+                    continue
+
+                pos_og = self.chess_nota_to_vector(ipt)
+                selected_piece = self.board.get_item(pos_og)
+                if selected_piece is None or selected_piece.color != turn_player.color:
+                    print("Please select a square occupied by your piece")
+                    continue
+
+                game_state = State.SELECT_DEST
+
+            # -----------------------------------------------------------------------
+            elif State.SELECT_DEST == game_state:
+                ipt = self.player_input()
+
+                if ipt == "x":
+                    game_state = State.SELECT_PIECE
+                    continue
+
+                if ipt == "s":
+                    game_state = State.SURRENDER
+                    continue
+
+                pos_new = self.chess_nota_to_vector(ipt)
+                try_vector = pos_new - pos_og
+                dest_piece = self.board.get_item(pos_new)
+
+                game_state = State.END_PHASE
+
+            # -----------------------------------------------------------------------
+            elif State.END_PHASE == game_state:
+                turn_counter += 1
                 game_state = State.UPKEEP
 
+            # -----------------------------------------------------------------------
+            elif State.SURRENDER == game_state:
+                print(f"\nplayer {turn_player} surrendered!")
+                game_state = State.GAME_END
 
+            # -----------------------------------------------------------------------
+            elif State.GAME_END == game_state:
+                running = False
+                return
 
-
-            # UPKEEP STUFF
-            self.mfinder.create_nodes()
-            self.mfinder.filter_blocked_nodes()
-
-            turn_player = p_white if turn_counter % 2 != 0 else p_black
-            print(f"{turn_player}'s Turn")
-            self.board.printb()
-
-
-            print("Select your Piece:", end=" ")
-            self.debug_to_files(self.mfinder.root_nodes)
-
-            pos = self.player_selects_square()
-            selected_piece = self.board.get_item(pos)
-            if selected_piece is None or selected_piece.color != turn_player.color:
-
-
-
-    
-
-    def player_selects_square(self) -> Vector:
+    def player_input(self) -> str:
         while True:
-            ipt = input(": ")
-            if len(ipt) != 2:
-                print("use this format: [a-h][1-8], for example: d4, h8, a7, etc.")
-                continue
+            ipt = input(": ").lower()
+            # cancel action or surrender
+            if ipt in ("x", "s"):
+                return ipt.lower()
 
-            if ipt[0].lower() < "a" or ipt[0].lower() > "h":
-                continue
+            if (
+                len(ipt) == 2
+                and ipt[0] >= "a"
+                and ipt[0] <= "h"
+                and ipt[1] >= "1"
+                and ipt[1] <= "8"
+            ):
+                return ipt
+            print(self.help_message())
 
-            if ipt[1] < "1" or ipt[1] > "8":
-                continue
+    def help_message(self) -> str:
+        return "use this format: [a-h][1-8], for example: d4, h8, a7, etc."
 
-            break
-        return self.convert_chess_nota_to_vector(ipt)
-
-    def convert_chess_nota_to_vector(self, nota):
-        # TODO error handling
+    def chess_nota_to_vector(self, nota: str) -> Vector:
         y = 8 - int(nota[1])
         x = ord(nota[0].lower()) - ord("a")
         return Vector(x, y)
 
-    def convert_vector_to_chess_nota(self, position: Vector):
-        # TODO error handling
-        file = str(8 - position.y)
-        rank = str(int(ord("a") + position.x))
+    def vector_to_chess_nota(self, pos: Vector) -> str:
+        file = str(8 - pos.y)
+        rank = str(int(ord("a") + pos.x))
         return f"{file}{rank}"
 
     def debug_to_files(self, all_moves, fp="valid_moves.txt"):
@@ -240,12 +270,21 @@ class Node:
 class MoveFinder:
     def __init__(self, board: Board):
         self.board = board
-        self.root_nodes = {}  # k: Piece, v:
+        self.root_nodes: dict[Piece, Node]  # k: Piece, v:
         self.king_black = None
         self.king_white = None
 
     def is_in_bounds(self, pos: Vector) -> bool:
         return 0 <= pos.x <= 7 and 0 <= pos.y <= 7
+
+    def is_vector_in_moveset(self, p: Piece, v: Vector) -> bool:
+        return False
+        # TODO how to traverse DFS w/o recursion
+        n = self.root_nodes[p]
+        pos_og = n.pos
+
+        if len(n.adjacent_nodes) == 0:
+            return False
 
     def create_nodes(self):
         # Whole Move finding starts here
