@@ -39,15 +39,9 @@ class Game:
         try_vector = None
 
         ## GAME LOOP
-        ##
         while running:
-
-            self.board.printb()
-
             # -----------------------------------------------------------------------
             if State.UPKEEP == game_state:
-                self.mfinder.create_nodes()
-                self.mfinder.filter_blocked_nodes()
 
                 turn_player = self.p_white if turn_counter % 2 != 0 else self.p_black
 
@@ -103,12 +97,13 @@ class Game:
 
             # -----------------------------------------------------------------------
             elif State.GAME_END == game_state:
-                running = False
+                #running = False
                 return
 
     def player_input(self) -> str:
         while True:
             ipt = input(": ").lower()
+            ipt = ipt.strip()
             # cancel action or surrender
             if ipt in ("x", "s"):
                 return ipt.lower()
@@ -124,7 +119,7 @@ class Game:
             print(self.help_message())
 
     def help_message(self) -> str:
-        return "use this format: [a-h][1-8], for example: d4, h8, a7, etc."
+        return "select a square with [a-h][1-8], e.g. b7, d3, A4\n'x' to cancel action\n's' to surrender"
 
     def chess_nota_to_vector(self, nota: str) -> Vector:
         y = 8 - int(nota[1])
@@ -136,7 +131,7 @@ class Game:
         rank = str(int(ord("a") + pos.x))
         return f"{file}{rank}"
 
-    def debug_to_files(self, all_moves, fp="valid_moves.txt"):
+    def debug_to_file(self, all_moves, fp="valid_moves.txt"):
         with open(fp, "w") as f:
             for piece, root_nodes in all_moves.items():
                 f.write(f"{piece.type}{piece.color}\n")
@@ -233,9 +228,7 @@ class MoveHistory:
         raise NotImplementedError
 
 
-# TODO if nothing else uses this function except Node just make it a method
 def get_base_vectors(piece: Piece):
-    """This function just handles the case for a pawn whose vectors depend on its colors"""
     bvs = ALL_BASE_VECTORS[piece.type]
     if piece.type is PieceType.PAWN:
         direction = 1 if piece.color == Colors.BLACK else -1
@@ -245,23 +238,14 @@ def get_base_vectors(piece: Piece):
 
 
 class Node:
-    def __init__(self, pos: Vector, parent):
+    def __init__(self, pos: Vector):
         self.pos = pos
         # only the root node has multiple adjacent nodes.
         # child nodes have 0-1 adj_nodes
-        self.parent = parent
         self.adjacent_nodes = []
 
     def add_node(self, node: "Node"):
         self.adjacent_nodes.append(node)
-
-    def print_nodes(self, level=0, fp=None):
-        print(
-            f"{"\t"*level}{self} parent {self.parent}",
-            file=fp,
-        )
-        for n in self.adjacent_nodes:
-            n.print_nodes(level=(level + 1), fp=fp)
 
     def __str__(self):
         return f"({self.pos.x}, {self.pos.y})"
@@ -270,25 +254,15 @@ class Node:
 class MoveFinder:
     def __init__(self, board: Board):
         self.board = board
-        self.root_nodes: dict[Piece, Node]  # k: Piece, v:
+        self.move_graphs = {} 
         self.king_black = None
         self.king_white = None
 
     def is_in_bounds(self, pos: Vector) -> bool:
         return 0 <= pos.x <= 7 and 0 <= pos.y <= 7
 
-    def is_vector_in_moveset(self, p: Piece, v: Vector) -> bool:
-        return False
-        # TODO how to traverse DFS w/o recursion
-        n = self.root_nodes[p]
-        pos_og = n.pos
 
-        if len(n.adjacent_nodes) == 0:
-            return False
-
-    def create_nodes(self):
-        # Whole Move finding starts here
-        self.root_nodes = {}
+    def create_move_graphs(self):
         for y, line in enumerate(self.board.grid):
             for x, square in enumerate(line):
                 if square.occ is None:
@@ -300,109 +274,81 @@ class MoveFinder:
                     else:
                         self.king_white = square.occ
 
-                self.root_nodes.setdefault(square.occ, Node(Vector(x, y), None))
-                self.find_pseudo_moves(square.occ)
+                root_node = Vector(x, y)
+                self.move_graphs.setdefault(
+                    square.occ, {root_node: []}
+                )
 
-    # PSEUDO MOVE BLOCK
-    def find_pseudo_moves(self, piece: Piece):
-        base_vectors = get_base_vectors(piece)
+                self.find_adjacent_nodes(square.occ, root_node)
 
-        if piece.type in (PieceType.KING, PieceType.KNIGHT):
-            self.add_pseudo_moves_KN(piece, base_vectors)
-        if piece.type in (PieceType.QUEEN, PieceType.BISHOP, PieceType.ROOK):
-            self.add_pseudo_moves_QBR(piece, base_vectors)
-        if piece.type == PieceType.PAWN:
-            self.add_pseudo_moves_P(piece, base_vectors)
 
-    def add_pseudo_moves_KN(self, piece: Piece, base_vectors):
-        root_node = self.root_nodes[piece]
 
+
+    def find_adjacent_nodes(self, p: Piece, root: Vector):
+        bvs = get_base_vectors(p)
+        graph = self.move_graphs[p]
+
+        if p.type in (PieceType.QUEEN, PieceType.BISHOP, PieceType.ROOK):
+            self.find_adj_nodes_QBR(graph, root, bvs)
+        if p.type in (PieceType.KING, PieceType.KNIGHT):
+            self.find_adj_nodes_KN(p, graph, root, bvs)
+        if p.type == PieceType.PAWN:
+            self.find_adj_nodes_P(p, graph, root, bvs)
+
+
+    def find_adj_nodes_QBR(self, graph, root: Vector, base_vectors):
         for bv in base_vectors:
-            new_pos = root_node.pos + bv
-            if self.is_in_bounds(new_pos):
-                adj_node = Node(new_pos, root_node)
-                root_node.add_node(adj_node)
-                parent_node = adj_node
-
-        # add castling nodes
-        if piece.type == PieceType.KING and piece.unmoved:
-            root_node.add_node(Node(root_node.pos - Vector(2, 0), root_node))
-
-            root_node.add_node(Node(root_node.pos + Vector(2, 0), root_node))
-
-    def add_pseudo_moves_QBR(self, piece: Piece, base_vectors):
-        root_node = self.root_nodes[piece]
-        for bv in base_vectors:
-            new_pos = root_node.pos + bv
-            current_node = root_node
+            current_pos = root 
+            new_pos = current_pos + bv
             while self.is_in_bounds(new_pos):
-                adj_node = Node(new_pos, current_node)
-                current_node.add_node(adj_node)
-                current_node = adj_node
-                new_pos = current_node.pos + bv
+                # found existing Node
+                graph.setdefault(new_pos, [])
+                # add to adj list
+                graph[current_pos].append(new_pos)
+                current_pos = new_pos
+                new_pos = current_pos + bv
 
-    def add_pseudo_moves_P(self, piece: Piece, base_vectors):
-        """Pawn has some shenanigans. First vector in base_vectors is its normal move vector.
-        The next two are capture vectors"""
-        root_node = self.root_nodes[piece]
-        move_vector = base_vectors[0]
-        capture_vectors = base_vectors[1:]
-
-        # cursed code but i like it lol
-        current_node = root_node
-        for s in range(1, piece.unmoved + 2):
-            new_pos = current_node.pos + move_vector
+    def find_adj_nodes_KN(self, p: Piece, graph, root: Vector, base_vectors):
+        for bv in base_vectors:
+            new_pos = root + bv
             if self.is_in_bounds(new_pos):
-                adj_node = Node(new_pos, current_node)
-                current_node.add_node(adj_node)
-                current_node = adj_node
+                # found existing Node
+                graph.setdefault(new_pos, [])
+                # add to adj list 
+                graph[root].append(new_pos)
 
-        for cv in capture_vectors:
-            new_pos = root_node.pos + cv
+        # add_castling
+        if p.type == PieceType.KING and p.unmoved:
+            castle_right = root + Vector(2, 0)
+            graph.setdefault(castle_right, [])
+            graph[root].append(castle_right)
+
+            castle_left = root - Vector(2, 0)
+            graph.setdefault(castle_left, [])
+            graph[root].append(castle_left)
+
+
+
+
+    def find_adj_nodes_P(self,p: Piece, graph, root: Vector, base_vectors):
+        # capture vectors
+        for bv in base_vectors[:1]:
+            new_pos = root + bv
             if self.is_in_bounds(new_pos):
-                root_node.add_node(Node(new_pos, root_node))
+                # found existing Node
+                graph.setdefault(new_pos, [])
+                # add to adj list 
+                graph[root].append(new_pos)
 
-    # PSEUDO MOVE BLOCK END
+        # move vector
+        for i in range(1, p.unmoved + 2):
+            new_pos = root + base_vectors[0].scale(i)
+            if self.is_in_bounds(new_pos):
+                # found existing Node
+                graph.setdefault(new_pos, [])
+                # add to adj list 
+                graph[root].append(new_pos)
 
-    # COLLISION BLOCK
-    def filter_blocked_nodes(self):
-        for piece, root_node in self.root_nodes.items():
-            # collision type 1
 
-            if piece.type == PieceType.KING:
-                pass
 
-            if piece.type in (
-                PieceType.QUEEN,
-                PieceType.BISHOP,
-                PieceType.ROOK,
-            ):
-                pass
-                # self.filter_collision_type1(root_node, piece)
 
-            # collision type 2
-            if piece.type == PieceType.KNIGHT:
-                self.filter_collision_type2(root_node, piece)
-            # collision type 31
-            if piece.type == PieceType.PAWN:
-                pass
-
-    # TODO finish the filter
-    def filter_collision_type1(self, node, piece):
-        for n in node.adjacent_nodes:
-            p = self.board.get_item(n.pos)
-            if p is None or p.color != piece.color:
-                # call func rec
-                self.filter_collision_type1(n, piece)
-            else:
-                node.adjacent_nodes.remove(n)
-
-    def filter_collision_type2(self, node, piece):
-        for n in node.adjacent_nodes:
-            p = self.board.get_item(n.pos)
-            if p is None or p.color != piece.color:
-                pass
-            else:
-                node.adjacent_nodes.remove(n)
-
-    # COLLISION BLOCK END
