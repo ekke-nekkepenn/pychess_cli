@@ -42,6 +42,8 @@ class Game:
         while running:
             # -----------------------------------------------------------------------
             if State.UPKEEP == game_state:
+                self.mfinder.create_move_graphs()
+                self.mfinder.print_graphs()
 
                 turn_player = self.p_white if turn_counter % 2 != 0 else self.p_black
 
@@ -97,7 +99,6 @@ class Game:
 
             # -----------------------------------------------------------------------
             elif State.GAME_END == game_state:
-                #running = False
                 return
 
     def player_input(self) -> str:
@@ -237,64 +238,32 @@ def get_base_vectors(piece: Piece):
     return bvs
 
 
-class Node:
-    def __init__(self, pos: Vector):
-        self.pos = pos
-        # only the root node has multiple adjacent nodes.
-        # child nodes have 0-1 adj_nodes
-        self.adjacent_nodes = []
-
-    def add_node(self, node: "Node"):
-        self.adjacent_nodes.append(node)
-
-    def __str__(self):
-        return f"({self.pos.x}, {self.pos.y})"
-
 
 class MoveFinder:
     def __init__(self, board: Board):
         self.board = board
         self.move_graphs = {} 
-        self.king_black = None
-        self.king_white = None
 
     def is_in_bounds(self, pos: Vector) -> bool:
         return 0 <= pos.x <= 7 and 0 <= pos.y <= 7
 
-
     def create_move_graphs(self):
         for y, line in enumerate(self.board.grid):
             for x, square in enumerate(line):
-                if square.occ is None:
+                piece = square.occ
+                if piece is None:
                     continue
 
-                if square.occ.type == PieceType.KING:
-                    if square.occ.color == Colors.BLACK:
-                        self.king_black = square.occ
-                    else:
-                        self.king_white = square.occ
-
                 root_node = Vector(x, y)
-                self.move_graphs.setdefault(
-                    square.occ, {root_node: []}
-                )
+                self.move_graphs.setdefault(piece, {root_node: []})
+                bvs = get_base_vectors(piece)
 
-                self.find_adjacent_nodes(square.occ, root_node)
-
-
-
-
-    def find_adjacent_nodes(self, p: Piece, root: Vector):
-        bvs = get_base_vectors(p)
-        graph = self.move_graphs[p]
-
-        if p.type in (PieceType.QUEEN, PieceType.BISHOP, PieceType.ROOK):
-            self.find_adj_nodes_QBR(graph, root, bvs)
-        if p.type in (PieceType.KING, PieceType.KNIGHT):
-            self.find_adj_nodes_KN(p, graph, root, bvs)
-        if p.type == PieceType.PAWN:
-            self.find_adj_nodes_P(p, graph, root, bvs)
-
+                if piece.type in (PieceType.QUEEN, PieceType.BISHOP, PieceType.ROOK):
+                    self.find_adj_nodes_QBR(graph, root, bvs)
+                elif piece.type in (PieceType.KING, PieceType.KNIGHT):
+                    self.find_adj_nodes_KN(piece, graph, root, bvs)
+                elif piece.type == PieceType.PAWN:
+                    self.find_adj_nodes_P(piece, graph, root, bvs)
 
     def find_adj_nodes_QBR(self, graph, root: Vector, base_vectors):
         for bv in base_vectors:
@@ -327,11 +296,8 @@ class MoveFinder:
             graph.setdefault(castle_left, [])
             graph[root].append(castle_left)
 
-
-
-
-    def find_adj_nodes_P(self,p: Piece, graph, root: Vector, base_vectors):
-        # capture vectors
+    def find_adj_nodes_P(self, p: Piece, graph, root: Vector, base_vectors):
+        # capture vectors 
         for bv in base_vectors[:1]:
             new_pos = root + bv
             if self.is_in_bounds(new_pos):
