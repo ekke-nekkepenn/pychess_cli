@@ -1,3 +1,4 @@
+from encodings.punycode import T
 from pathlib import Path
 from enum import Enum, auto
 
@@ -40,10 +41,11 @@ class Game:
 
         ## GAME LOOP
         while running:
+            self.board.printb()
+            print()
             # -----------------------------------------------------------------------
             if State.UPKEEP == game_state:
                 self.mfinder.create_move_graphs()
-                self.mfinder.print_graphs()
 
                 turn_player = self.p_white if turn_counter % 2 != 0 else self.p_black
 
@@ -64,7 +66,7 @@ class Game:
                 pos_og = self.chess_nota_to_vector(ipt)
                 selected_piece = self.board.get_item(pos_og)
                 if selected_piece is None or selected_piece.color != turn_player.color:
-                    print("Please select a square occupied by your piece")
+                    print("Please select a square with your piece on it")
                     continue
 
                 game_state = State.SELECT_DEST
@@ -84,6 +86,20 @@ class Game:
                 pos_new = self.chess_nota_to_vector(ipt)
                 try_vector = pos_new - pos_og
                 dest_piece = self.board.get_item(pos_new)
+
+                # TODO!!!!!!!!!!!!!!!!!!!!!!!
+                ## PUT IN FUNCTION
+                graph = self.mfinder.move_graphs[selected_piece]
+                print(f"BEFORE: {graph}")
+                self.mfinder.foo_graph_blah_QBR(graph, pos_og, selected_piece)
+                print(f"AFTER: {graph}")
+
+                if self.mfinder.is_node_in(graph, pos_og, pos_new):
+                    print("Move is valid.")
+                ## PUT IN FUNCTION
+
+                else:
+                    break
 
                 game_state = State.END_PHASE
 
@@ -132,28 +148,17 @@ class Game:
         rank = str(int(ord("a") + pos.x))
         return f"{file}{rank}"
 
-    def debug_to_file(self, all_moves, fp="valid_moves.txt"):
-        with open(fp, "w") as f:
-            for piece, root_nodes in all_moves.items():
-                f.write(f"{piece.type}{piece.color}\n")
-                root_nodes.print_nodes(fp=f)
-                print("\n", file=f)
-
-    def save_board_state(self):
-        self.layout_handler.layout_to_file(self.board, Path("board_state.csv"))
-        return self.layout_handler.layout_to_string
-
 
 class LayoutHandler:
     def __init__(self):
-        self.paths = [
+        self.paths_names = [
             "layout_standard.csv",
             "layout_testing.csv",
             "test2.csv",
             "test_exposed.csv",
             "test_exposed_2.csv",
         ]
-        self.path_to_layout = Path(".") / "layouts" / self.paths[0]
+        self.path_to_layout = Path(".") / "layouts" / self.paths_names[0]
         self.layout = []
 
     def reset_layout(self):
@@ -188,8 +193,8 @@ class LayoutHandler:
                     else:
                         ptype = type
 
+                # TODO idk why i added this clause?
                 if not pcolor or not ptype:
-                    # TODO error handling
                     print("applying layout failed!")
                     raise ValueError
 
@@ -238,24 +243,26 @@ def get_base_vectors(piece: Piece):
     return bvs
 
 
-
 class MoveFinder:
     def __init__(self, board: Board):
         self.board = board
-        self.move_graphs = {} 
+        self.move_graphs = {}
 
     def is_in_bounds(self, pos: Vector) -> bool:
         return 0 <= pos.x <= 7 and 0 <= pos.y <= 7
 
+    # GRAPH CREATION BLOCK -----------------------------------------------------------
     def create_move_graphs(self):
+        # creates graphs with moves that are valid on an empty board
         for y, line in enumerate(self.board.grid):
             for x, square in enumerate(line):
                 piece = square.occ
                 if piece is None:
                     continue
 
-                root_node = Vector(x, y)
-                self.move_graphs.setdefault(piece, {root_node: []})
+                root = Vector(x, y)  # current pos of piece
+                graph = {root: []}
+                self.move_graphs.setdefault(piece, graph)
                 bvs = get_base_vectors(piece)
 
                 if piece.type in (PieceType.QUEEN, PieceType.BISHOP, PieceType.ROOK):
@@ -267,7 +274,7 @@ class MoveFinder:
 
     def find_adj_nodes_QBR(self, graph, root: Vector, base_vectors):
         for bv in base_vectors:
-            current_pos = root 
+            current_pos = root
             new_pos = current_pos + bv
             while self.is_in_bounds(new_pos):
                 # found existing Node
@@ -283,7 +290,7 @@ class MoveFinder:
             if self.is_in_bounds(new_pos):
                 # found existing Node
                 graph.setdefault(new_pos, [])
-                # add to adj list 
+                # add to adj list
                 graph[root].append(new_pos)
 
         # add_castling
@@ -297,24 +304,73 @@ class MoveFinder:
             graph[root].append(castle_left)
 
     def find_adj_nodes_P(self, p: Piece, graph, root: Vector, base_vectors):
-        # capture vectors 
-        for bv in base_vectors[:1]:
+        # capture vectors
+        for bv in base_vectors[1:]:
             new_pos = root + bv
             if self.is_in_bounds(new_pos):
                 # found existing Node
                 graph.setdefault(new_pos, [])
-                # add to adj list 
+                # add to adj list
                 graph[root].append(new_pos)
 
-        # move vector
-        for i in range(1, p.unmoved + 2):
+        for i in range(1, p.unmoved + 2):  # range 1 or 2
             new_pos = root + base_vectors[0].scale(i)
             if self.is_in_bounds(new_pos):
                 # found existing Node
                 graph.setdefault(new_pos, [])
-                # add to adj list 
+                # add to adj list
                 graph[root].append(new_pos)
 
+    # GRAPH CREATION BLOCK -----------------------------------------------------------
 
+    def is_node_in(self, graph, root: Vector, test_node: Vector) -> bool:
+        queue = []
+        visited = []
+        visited.append(root)
+        queue.append(root)
 
+        while queue:
+            node = queue.pop(0)
+            # techinically this will always be False for the root
+            if node == test_node:
+                return True
 
+            for adjN in graph[node]:
+                if adjN not in visited:
+                    visited.append(adjN)
+                    queue.append(adjN)
+
+        return False
+
+    # FILTER OUT POS THAT ARE BLOCKED
+    def foo_graph_blah_QBR(self, graph, root: Vector, piece: Piece):
+        queue = []
+        visited = []
+        visited.append(root)
+        queue.append(root)
+        prior_node = root
+
+        while queue:
+            node = queue.pop(0)
+            new_piece = self.board.get_item(node)
+
+            if new_piece is None:
+                pass
+
+            elif new_piece.color != piece.color:
+                graph[node] = []
+
+            elif new_piece.color == piece.color:
+                if node == root:
+                    pass
+                else:
+                    graph[prior_node].remove(node)
+                    graph.pop(node)
+                    continue
+
+            for adjN in graph[node]:
+                if adjN not in visited:
+                    visited.append(adjN)
+                    queue.append(adjN)
+
+            prior_node = node

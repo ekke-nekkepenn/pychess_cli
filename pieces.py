@@ -33,7 +33,7 @@ class Piece:
         return self.color[0].lower()
 
 
-# Shared Vectors
+# Shared Vectors x, y
 v_U = Vector(0, -1)
 v_D = Vector(0, 1)
 v_R = Vector(1, 0)

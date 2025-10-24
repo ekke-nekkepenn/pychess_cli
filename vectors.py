@@ -17,7 +17,7 @@ class Vector:
         return Vector(self.x - v.x, self.y - v.y)
 
     def __hash__(self):
-        return id(self)
+        return int(str(self.x) + str(self.y))
 
     # misc vector methods
     def scale(self, s: int):
