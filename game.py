@@ -251,6 +251,11 @@ class MoveFinder:
     def is_in_bounds(self, pos: Vector) -> bool:
         return 0 <= pos.x <= 7 and 0 <= pos.y <= 7
 
+    def print_graph(self, piece):
+        print(f"\t\t{piece}")
+        for k, v in self.move_graphs[piece].items():
+            print(f"\t\t\t{k}, {v}")
+
     # GRAPH CREATION BLOCK -----------------------------------------------------------
     def create_move_graphs(self):
         # creates graphs with moves that are valid on an empty board
@@ -267,8 +272,26 @@ class MoveFinder:
 
                 if piece.type in (PieceType.QUEEN, PieceType.BISHOP, PieceType.ROOK):
                     self.find_adj_nodes_QBR(graph, root, bvs)
-                elif piece.type in (PieceType.KING, PieceType.KNIGHT):
+                    # TODO
+                    print("PRIOR-----------------------------------")
+                    self.print_graph(piece)
+
+                    self.filter_out_blocked_positions_QBRN(graph, root, piece)
+                    print("AFTER-----------------------------------")
+                    self.print_graph(piece)
+
+                elif piece.type == PieceType.KNIGHT:
                     self.find_adj_nodes_KN(piece, graph, root, bvs)
+                    print("PRIOR-----------------------------------")
+                    self.print_graph(piece)
+
+                    self.filter_out_blocked_positions_QBRN(graph, root, piece)
+                    print("AFTER-----------------------------------")
+                    self.print_graph(piece)
+
+                elif piece.type == PieceType.KING:
+                    self.find_adj_nodes_KN(piece, graph, root, bvs)
+
                 elif piece.type == PieceType.PAWN:
                     self.find_adj_nodes_P(piece, graph, root, bvs)
 
@@ -308,26 +331,29 @@ class MoveFinder:
         for bv in base_vectors[1:]:
             new_pos = root + bv
             if self.is_in_bounds(new_pos):
-                # found existing Node
+                # found new Node
                 graph.setdefault(new_pos, [])
                 # add to adj list
                 graph[root].append(new_pos)
 
+        # forward move vectors
+        current_pos = root
         for i in range(1, p.unmoved + 2):  # range 1 or 2
-            new_pos = root + base_vectors[0].scale(i)
-            if self.is_in_bounds(new_pos):
-                # found existing Node
-                graph.setdefault(new_pos, [])
-                # add to adj list
-                graph[root].append(new_pos)
+            new_pos = current_pos + base_vectors[0]
+            if not self.is_in_bounds(new_pos):
+                break
 
-    # GRAPH CREATION BLOCK -----------------------------------------------------------
+            # found new Node
+            graph.setdefault(new_pos, [])
+            # add to adj list
+            graph[current_pos].append(new_pos)
+            current_pos = new_pos
+
+    # END GRAPH CREATION BLOCK -----------------------------------------------------------
 
     def is_node_in(self, graph, root: Vector, test_node: Vector) -> bool:
-        queue = []
-        visited = []
-        visited.append(root)
-        queue.append(root)
+        queue = [root]
+        visited = [root]
 
         while queue:
             node = queue.pop(0)
@@ -342,35 +368,50 @@ class MoveFinder:
 
         return False
 
-    # FILTER OUT POS THAT ARE BLOCKED
-    def foo_graph_blah_QBR(self, graph, root: Vector, piece: Piece):
+    def delete_nodes_and_friends(self, graph, node):
+        for adjN in graph[node]:
+            self.delete_nodes_and_friends(graph, adjN)
+        graph.pop(node)
+
+    def filter_out_blocked_positions_QBRN(self, graph, root: Vector, piece: Piece):
         queue = []
         visited = []
-        visited.append(root)
-        queue.append(root)
         prior_node = root
+
+        for adjN in graph[root]:
+            if adjN not in visited:
+                visited.append(adjN)
+                queue.append(adjN)
 
         while queue:
             node = queue.pop(0)
             new_piece = self.board.get_item(node)
 
+            # check if square is occupied by None|ENEMY|ALLY
+            # ENEMY ->  rm all adj Nodes from 'node'
+            # ALLY ->   rm 'node' from 'graph'
+            #           & rm 'node' in the adj List of prior 'node' 
+            #           & rm adjNodes in graph which are in adj List of 'node'
+
             if new_piece is None:
                 pass
 
+            # if-ENEMY
             elif new_piece.color != piece.color:
+                for adjN in graph[node]:
+                    graph.pop(adjN)
                 graph[node] = []
 
+            # if-ALLY
             elif new_piece.color == piece.color:
-                if node == root:
-                    pass
-                else:
-                    graph[prior_node].remove(node)
-                    graph.pop(node)
-                    continue
+                graph[prior_node].remove(node)
+                self.delete_nodes_and_friends(graph, node)
+                continue
 
             for adjN in graph[node]:
                 if adjN not in visited:
                     visited.append(adjN)
                     queue.append(adjN)
 
+            # stays 'root' if the 'if-ALLY' hits continue
             prior_node = node
