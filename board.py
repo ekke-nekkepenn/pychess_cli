@@ -1,78 +1,158 @@
-from dataclasses import dataclass
+from enum import StrEnum
+from dataclasses import dataclass, field
 
 from colors import Colors
 from pieces import Piece, PieceType
 from vectors import Vector
 
-Sprite_letters = {
-    "White": {
-        "King": "wK",
-        "Queen": "wQ",
-        "Rook": "wR",
-        "Bishop": "wB",
-        "Knight": "wN",
-        "Pawn": "wP",
-        None: "[]",
-    },
-    "Black": {
-        "King": "bK",
-        "Queen": "bQ",
-        "Rook": "bR",
-        "Bishop": "bB",
-        "Knight": "bN",
-        "Pawn": "bP",
-        None: "{}",
-    },
-    "Marked": "XX",
-}
 
-Sprite_glyphs = {
-    "White": {
-        "King": "♔",
-        "Queen": "♕",
-        "Rook": "♖",
-        "Bishop": "♗",
-        "Knight": "♘",
-        "Pawn": "♙",
-        None: "⬜",
-    },
-    "Black": {
-        "King": "♚",
-        "Queen": "♛",
-        "Rook": "♜",
-        "Bishop": "♝",
-        "Knight": "♞",
-        "Pawn": "♟︎",
-        None: "⬛",
-    },
-    "Marked": "XX",
-}
+class Color_Code(StrEnum):
+    # ANSI color codes
+    NO_COLOR = ""
+    FG_BLACK = "30"
+    FG_RED = "31"
+    FG_GREEN = "32"
+    FG_YELLOW = "33"
+    FG_BLUE = "34"
+    FG_MAGENTA = "35"
+    FG_CYAN = "36"
+    FG_WHITE = "37"
+    #
+    BG_BLACK = "40"
+    BG_RED = "41"
+    BG_GREEN = "42"
+    BG_YELLOW = "43"
+    BG_BLUE = "44"
+    BG_MAGENTA = "45"
+    BG_CYAN = "46"
+    BG_WHITE = "47"
+
+
+class Style(StrEnum):
+    GLYPH = "glyph"
+    CHAR = "char"
+
+
+class Printer:
+    """Colors work by using ANSI escape codes.
+    ref: https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
+    basically use "\x1bn[{...}m". replace Curly Braces with desired Code.
+    You can use more than one code seperated by ";". E.g. "\x1bn35;14m"
+    To reset a style use "\x1bn[0m" at the end of string
+    """
+
+    esc = "\x1b["
+
+    sprite_sheets = {
+        Style.GLYPH: {
+            Colors.WHITE: {
+                PieceType.KING: "♔",
+                PieceType.QUEEN: "♕",
+                PieceType.ROOK: "♖",
+                PieceType.BISHOP: "♗",
+                PieceType.KNIGHT: "♘",
+                PieceType.PAWN: "♙",
+                # None: "⬜",
+            },
+            Colors.BLACK: {
+                PieceType.KING: "♚",
+                PieceType.QUEEN: "♛",
+                PieceType.ROOK: "♜",
+                PieceType.BISHOP: "♝",
+                PieceType.KNIGHT: "♞",
+                PieceType.PAWN: "♟︎",
+                # None: "⬛",
+            },
+            None: "  ",
+        },
+        Style.CHAR: {
+            Colors.WHITE: {
+                PieceType.KING: "wK",
+                PieceType.QUEEN: "wQ",
+                PieceType.ROOK: "wR",
+                PieceType.BISHOP: "wB",
+                PieceType.KNIGHT: "wN",
+                PieceType.PAWN: "wP",
+                None: "[]",
+            },
+            Colors.BLACK: {
+                PieceType.KING: "bK",
+                PieceType.QUEEN: "bQ",
+                PieceType.ROOK: "bR",
+                PieceType.BISHOP: "bB",
+                PieceType.KNIGHT: "bN",
+                PieceType.PAWN: "bP",
+            },
+            None: "  ",
+        },
+    }
+
+    def __init__(self, style: Style):
+        self.style = style
+        self.fg_color_white = Color_Code.FG_WHITE
+        self.fg_color_black = Color_Code.FG_BLACK
+        self.bg_color_white = Color_Code.BG_MAGENTA
+        self.bg_color_black = Color_Code.BG_GREEN
+
+    def construct_printable(self, square: "Square") -> str:
+        #TODO fg_color stays black for some reason despite the 
+        #TODO correct value in the string at the end
+        fg_color = ""
+        bg_color = ""
+
+        if square.color == Colors.WHITE:
+            bg_color += self.bg_color_white
+        else:
+            bg_color += self.bg_color_black
+
+        ptype = square.get_occ_type()
+        pcolor = square.get_occ_color()
+
+        if pcolor == Colors.WHITE:
+            fg_color += self.fg_color_white
+        elif pcolor == Colors.BLACK:
+            fg_color += self.fg_color_black
+
+        sprite = self.sprite_sheets[self.style][pcolor][ptype]
+        return self.esc + bg_color + ";" + fg_color + "m" + sprite + self.esc + "0m"
 
 
 @dataclass
 class Square:
-    """just a cointainer for Piece instances"""
-
+    xy: Vector
     occ: Piece | None = None  # occupant
+    color: Colors = field(init=False)
+
+    def __post_init__(self):
+        if (self.xy.x + self.xy.y) % 2 == 0:
+            self.color = Colors.WHITE
+        else:
+            self.color = Colors.BLACK
+
+    def get_occ_type(self) -> None | PieceType:
+        if self.occ is None:
+            return None
+        return self.occ.type
+
+    def get_occ_color(self) -> None | Colors:
+        if self.occ is None:
+            return None
+        return self.occ.color
 
 
 class Board:
-    def __init__(self, style="Char"):
+    def __init__(self):
+        self.size = 8
         self.grid = self.__init_grid__()
-        self.style = style
-        self.printer = Printer()
 
     def __init_grid__(self) -> tuple[tuple[Square]]:
         grid = []
-        for y in range(8):
+        for y in range(self.size):
             row = []
-            for x in range(8):
-                row.append(Square())
+            for x in range(self.size):
+                row.append(Square(xy=Vector(x, y)))
             grid.append(tuple(row))
         return tuple(grid)
-
-    def printb(self, marked=None):
-        self.printer.print_grid(self.grid, self.style, marked)
 
     # ACCESS methods
     def get_item(self, pos: Vector) -> Piece | None:
@@ -105,56 +185,15 @@ class Board:
         return removed_item
 
 
-class Printer:
-    def __init__(self):
-        pass
-
-    def print_grid(self, grid, style, marked=None):
-        if style == "Char":
-            self.print_char(grid, marked)
-        elif style == "Glyph":
-            self.print_glyphs(grid, marked)
-
-    def print_char(self, grid, marked):
-        if marked is None:
-            marked = []
-
-        for y, row in enumerate(grid):
-            for x, square in enumerate(row):
-                piece = square.occ
-
-                if (x, y) in marked:
-                    sprite = Sprite_letters["Marked"]
-
-                elif piece is None:
-                    c = Colors.WHITE if (y + x) % 2 == 0 else Colors.BLACK
-                    t = None
-                    sprite = Sprite_letters[c][t]
-                else:
-                    c = piece.color
-                    t = piece.type
-                    sprite = Sprite_letters[c][t]
-                print(sprite, end=" ")
-            print()
-
-    def print_glyphs(self, grid, marked):
-        if marked is None:
-            marked = []
-
-        for y, row in enumerate(grid):
-            for x, square in enumerate(row):
-                piece = square.occ
-
-                if (x, y) in marked:
-                    sprite = Sprite_glyphs["Marked"]
-
-                elif piece is None:
-                    c = Colors.WHITE if (y + x) % 2 == 0 else Colors.BLACK
-                    t = None
-                    sprite = Sprite_glyphs[c][t]
-                else:
-                    c = piece.color
-                    t = piece.type
-                    sprite = Sprite_glyphs[c][t]
-                print(sprite, end=" ")
-            print()
+# Tests
+#prt = Printer(style=Style.CHAR)
+#s1 = Square(Vector(1, 1))
+#s2 = Square(Vector(5, 6))
+#
+#p1 = Piece(Colors.WHITE, PieceType.KING)
+#p2 = Piece(Colors.BLACK, PieceType.PAWN)
+#s1.occ = p1
+#s2.occ = p2
+#
+#st1 = prt.construct_printable(s1)
+#st2 = prt.construct_printable(s2)

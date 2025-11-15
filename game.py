@@ -1,4 +1,3 @@
-from encodings.punycode import T
 from pathlib import Path
 from enum import Enum, auto
 
@@ -41,6 +40,7 @@ class Game:
 
         ## GAME LOOP
         while running:
+            # TODO needs changing board & printer interaction changed
             self.board.printb()
             print()
             # -----------------------------------------------------------------------
@@ -390,7 +390,7 @@ class MoveFinder:
             # check if square is occupied by None|ENEMY|ALLY
             # ENEMY ->  rm all adj Nodes from 'node'
             # ALLY ->   rm 'node' from 'graph'
-            #           & rm 'node' in the adj List of prior 'node' 
+            #           & rm 'node' in the adj List of prior 'node'
             #           & rm adjNodes in graph which are in adj List of 'node'
 
             if new_piece is None:

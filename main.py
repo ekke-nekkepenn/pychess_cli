@@ -25,10 +25,10 @@ def main():
 
             return
 
-    # TODO Let user select names and colors
     p1 = Player("Vendrick", Colors.WHITE)
     p2 = Player("Gwyn", Colors.BLACK)
 
+    # TODO Board and Printer interaction changed
     board = Board(style)
     game = Game(p1, p2, board)
     game.layout_handler.load_layout()
