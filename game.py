@@ -2,7 +2,8 @@ from pathlib import Path
 from enum import Enum, auto
 
 from player import Player
-from board import Board
+
+# from board import Board
 from colors import Colors
 from vectors import Vector
 from pieces import Piece, PieceType, ALL_BASE_VECTORS
@@ -18,7 +19,7 @@ class State(Enum):
 
 
 class Game:
-    def __init__(self, p_white: Player, p_black: Player, board: Board):
+    def __init__(self, p_white: Player, p_black: Player, board: "Board"):
         self.p_white = p_white
         self.p_black = p_black
         self.board = board
@@ -171,7 +172,7 @@ class LayoutHandler:
                 # split at ','
                 self.layout.append(tuple(line.split(",")))
 
-    def apply_layout(self, board: Board):
+    def apply_layout(self, board: "Board"):
         for y, line in enumerate(self.layout):
             for x, piece in enumerate(line):
                 # piece HERE is just a string like "wP", "bQ" or ""
@@ -201,7 +202,7 @@ class LayoutHandler:
                 # instantiate Piece obj and set it on the board
                 board.set_item(Vector(x, y), Piece(pcolor, ptype))
 
-    def layout_to_string(self, board: Board) -> str:
+    def layout_to_string(self, board: "Board") -> str:
         layout_string = ""
         for rank in board.grid:
             for square in rank:
@@ -220,7 +221,7 @@ class LayoutHandler:
         layout_string = layout_string[:-1]
         return layout_string
 
-    def layout_to_file(self, board: Board, fp: Path):
+    def layout_to_file(self, board: "Board", fp: Path):
         layout_string = self.layout_to_string(board)
         with open(fp, "w") as f:
             f.write(layout_string)
@@ -244,7 +245,7 @@ def get_base_vectors(piece: Piece):
 
 
 class MoveFinder:
-    def __init__(self, board: Board):
+    def __init__(self, board: "Board"):
         self.board = board
         self.move_graphs = {}
 

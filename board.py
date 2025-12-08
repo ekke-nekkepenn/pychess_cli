@@ -1,31 +1,16 @@
+from dataclasses import dataclass
 from enum import StrEnum
-from dataclasses import dataclass, field
+
+import colorama
+
+# REMOVE THIS
+from game import LayoutHandler
+
+# REMOVE THIS
 
 from colors import Colors
 from pieces import Piece, PieceType
 from vectors import Vector
-
-
-class Color_Code(StrEnum):
-    # ANSI color codes
-    NO_COLOR = ""
-    FG_BLACK = "30"
-    FG_RED = "31"
-    FG_GREEN = "32"
-    FG_YELLOW = "33"
-    FG_BLUE = "34"
-    FG_MAGENTA = "35"
-    FG_CYAN = "36"
-    FG_WHITE = "37"
-    #
-    BG_BLACK = "40"
-    BG_RED = "41"
-    BG_GREEN = "42"
-    BG_YELLOW = "43"
-    BG_BLUE = "44"
-    BG_MAGENTA = "45"
-    BG_CYAN = "46"
-    BG_WHITE = "47"
 
 
 class Style(StrEnum):
@@ -34,15 +19,6 @@ class Style(StrEnum):
 
 
 class Printer:
-    """Colors work by using ANSI escape codes.
-    ref: https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
-    basically use "\x1bn[{...}m". replace Curly Braces with desired Code.
-    You can use more than one code seperated by ";". E.g. "\x1bn35;14m"
-    To reset a style use "\x1bn[0m" at the end of string
-    """
-
-    esc = "\x1b["
-
     sprite_sheets = {
         Style.GLYPH: {
             Colors.WHITE: {
@@ -52,7 +28,6 @@ class Printer:
                 PieceType.BISHOP: "♗",
                 PieceType.KNIGHT: "♘",
                 PieceType.PAWN: "♙",
-                # None: "⬜",
             },
             Colors.BLACK: {
                 PieceType.KING: "♚",
@@ -61,9 +36,8 @@ class Printer:
                 PieceType.BISHOP: "♝",
                 PieceType.KNIGHT: "♞",
                 PieceType.PAWN: "♟︎",
-                # None: "⬛",
             },
-            None: "  ",
+            None: {None: " "},
         },
         Style.CHAR: {
             Colors.WHITE: {
@@ -73,7 +47,6 @@ class Printer:
                 PieceType.BISHOP: "wB",
                 PieceType.KNIGHT: "wN",
                 PieceType.PAWN: "wP",
-                None: "[]",
             },
             Colors.BLACK: {
                 PieceType.KING: "bK",
@@ -83,61 +56,71 @@ class Printer:
                 PieceType.KNIGHT: "bN",
                 PieceType.PAWN: "bP",
             },
-            None: "  ",
+            None: {None: "  "},
         },
     }
 
-    def __init__(self, style: Style):
+    def __init__(self, style: Style, color_mode: bool):
         self.style = style
-        self.fg_color_white = Color_Code.FG_WHITE
-        self.fg_color_black = Color_Code.FG_BLACK
-        self.bg_color_white = Color_Code.BG_MAGENTA
-        self.bg_color_black = Color_Code.BG_GREEN
+        self.color_mode = color_mode
 
-    def construct_printable(self, square: "Square") -> str:
-        #TODO fg_color stays black for some reason despite the 
-        #TODO correct value in the string at the end
-        fg_color = ""
-        bg_color = ""
+    def print_board(self, board: "Board"):
+        n_pad = 3
+        left_pad = n_pad * "\t"
 
-        if square.color == Colors.WHITE:
-            bg_color += self.bg_color_white
-        else:
-            bg_color += self.bg_color_black
+        size_dep = 2 if self.style == Style.GLYPH else 1
 
-        ptype = square.get_occ_type()
-        pcolor = square.get_occ_color()
+        size = " " * size_dep
 
-        if pcolor == Colors.WHITE:
-            fg_color += self.fg_color_white
-        elif pcolor == Colors.BLACK:
-            fg_color += self.fg_color_black
+        for i, row in enumerate(board.grid):
+            print(left_pad, end="")
+            print(f"{board.size-i}", end=" ")
 
-        sprite = self.sprite_sheets[self.style][pcolor][ptype]
-        return self.esc + bg_color + ";" + fg_color + "m" + sprite + self.esc + "0m"
+            for j, square in enumerate(row):
+                # print board legend on left side (1-8)
+
+                symbol = self.construct_symbol(square)
+                print(f"{symbol}", end=f"{size}{colorama.Style.RESET_ALL}")
+
+            print()
+
+        # print the board legend (A-H) under borad
+        print(left_pad, end=" " * 2)
+        for i in range(board.size):
+            # chr(65) is "A"
+            print(f" {chr(i+65)}", end=size)
+        print()
+
+    def construct_symbol(self, square: "Square") -> str:
+        symbol = ""
+        occt = square.get_occ_type()
+        occc = square.get_occ_color()
+        sprite = self.sprite_sheets[self.style][occc][occt]
+        symbol += sprite
+        pad = ""
+        if self.color_mode:
+            pad = " "
+            bg_color = (
+                colorama.Back.BLACK
+                if square.color == Colors.BLACK
+                else colorama.Back.RED
+            )
+            fg_color = colorama.Fore.WHITE
+            symbol = f"{bg_color}{fg_color}{pad}{sprite}"
+        return symbol
 
 
 @dataclass
 class Square:
-    xy: Vector
+    coord: Vector
+    color: Colors
     occ: Piece | None = None  # occupant
-    color: Colors = field(init=False)
-
-    def __post_init__(self):
-        if (self.xy.x + self.xy.y) % 2 == 0:
-            self.color = Colors.WHITE
-        else:
-            self.color = Colors.BLACK
 
     def get_occ_type(self) -> None | PieceType:
-        if self.occ is None:
-            return None
-        return self.occ.type
+        return self.occ.type if self.occ else None
 
     def get_occ_color(self) -> None | Colors:
-        if self.occ is None:
-            return None
-        return self.occ.color
+        return self.occ.color if self.occ else None
 
 
 class Board:
@@ -150,17 +133,17 @@ class Board:
         for y in range(self.size):
             row = []
             for x in range(self.size):
-                row.append(Square(xy=Vector(x, y)))
+                c = Colors.BLACK if (x + y) % 2 != 0 else Colors.WHITE
+                row.append(Square(coord=Vector(x, y), color=c))
             grid.append(tuple(row))
         return tuple(grid)
 
-    # ACCESS methods
     def get_item(self, pos: Vector) -> Piece | None:
         return self.grid[pos.y][pos.x].occ
 
     def set_item(self, pos: Vector, item: Piece | None):
-        # this just accesses Squares Class which stores Piece
-        self.grid[pos.y][pos.x].occ = item
+        sqr: Square = self.grid[pos.y][pos.x]
+        sqr.occ = item
 
     def remove_item(self, pos: Vector) -> Piece | None:
         p = self.get_item(pos)
@@ -185,15 +168,43 @@ class Board:
         return removed_item
 
 
+colorama.just_fix_windows_console()
+
 # Tests
-#prt = Printer(style=Style.CHAR)
-#s1 = Square(Vector(1, 1))
-#s2 = Square(Vector(5, 6))
-#
-#p1 = Piece(Colors.WHITE, PieceType.KING)
-#p2 = Piece(Colors.BLACK, PieceType.PAWN)
-#s1.occ = p1
-#s2.occ = p2
-#
-#st1 = prt.construct_printable(s1)
-#st2 = prt.construct_printable(s2)
+s1 = Square(Vector(0, 0), Colors.WHITE)
+s2 = Square(Vector(1, 0), Colors.BLACK)
+s3 = Square(Vector(2, 0), Colors.WHITE)
+s4 = Square(Vector(3, 0), Colors.BLACK)
+
+p1 = Piece(Colors.WHITE, PieceType.KING)
+p2 = Piece(Colors.WHITE, PieceType.KNIGHT)
+
+p3 = Piece(Colors.BLACK, PieceType.PAWN)
+p4 = Piece(Colors.BLACK, PieceType.ROOK)
+
+s1.occ = p1
+# s2.occ = p2
+s3.occ = p3
+# s4.occ = p4
+
+prt = Printer(style=Style.GLYPH, color_mode=True)
+
+# st1 = prt.construct_symbol(s1)
+# st2 = prt.construct_symbol(s2)
+# st3 = prt.construct_symbol(s3)
+# st4 = prt.construct_symbol(s4)
+
+
+# print(st1, end="")
+# print(st2, end="")
+# print(st3, end="")
+# print(st4, end="")
+# print()
+
+board = Board()
+
+layout_handler = LayoutHandler()
+layout_handler.load_layout()
+layout_handler.apply_layout(board)
+
+prt.print_board(board)

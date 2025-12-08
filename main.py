@@ -29,7 +29,7 @@ def main():
     p2 = Player("Gwyn", Colors.BLACK)
 
     # TODO Board and Printer interaction changed
-    board = Board(style)
+    board = Board()
     game = Game(p1, p2, board)
     game.layout_handler.load_layout()
     game.layout_handler.apply_layout(game.board)
