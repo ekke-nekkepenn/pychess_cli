@@ -3,11 +3,6 @@ from enum import StrEnum
 
 import colorama
 
-# REMOVE THIS
-from game import LayoutHandler
-
-# REMOVE THIS
-
 from colors import Colors
 from pieces import Piece, PieceType
 from vectors import Vector
@@ -16,7 +11,6 @@ from vectors import Vector
 class Style(StrEnum):
     GLYPH = "glyph"
     CHAR = "char"
-
 
 class Printer:
     sprite_sheets = {
@@ -83,6 +77,10 @@ class Printer:
                 print(f"{symbol}", end=f"{size}{colorama.Style.RESET_ALL}")
 
             print()
+
+        # BUG spacing for `no color mode` AND `Glyph` Style does not match
+        # BUG spacing for `color mode` and `Char` Style does not match
+
 
         # print the board legend (A-H) under borad
         print(left_pad, end=" " * 2)
@@ -166,45 +164,3 @@ class Board:
         removed_item = self.get_item(pos_new)
         self.set_item(pos_new, p)
         return removed_item
-
-
-colorama.just_fix_windows_console()
-
-# Tests
-s1 = Square(Vector(0, 0), Colors.WHITE)
-s2 = Square(Vector(1, 0), Colors.BLACK)
-s3 = Square(Vector(2, 0), Colors.WHITE)
-s4 = Square(Vector(3, 0), Colors.BLACK)
-
-p1 = Piece(Colors.WHITE, PieceType.KING)
-p2 = Piece(Colors.WHITE, PieceType.KNIGHT)
-
-p3 = Piece(Colors.BLACK, PieceType.PAWN)
-p4 = Piece(Colors.BLACK, PieceType.ROOK)
-
-s1.occ = p1
-# s2.occ = p2
-s3.occ = p3
-# s4.occ = p4
-
-prt = Printer(style=Style.GLYPH, color_mode=True)
-
-# st1 = prt.construct_symbol(s1)
-# st2 = prt.construct_symbol(s2)
-# st3 = prt.construct_symbol(s3)
-# st4 = prt.construct_symbol(s4)
-
-
-# print(st1, end="")
-# print(st2, end="")
-# print(st3, end="")
-# print(st4, end="")
-# print()
-
-board = Board()
-
-layout_handler = LayoutHandler()
-layout_handler.load_layout()
-layout_handler.apply_layout(board)
-
-prt.print_board(board)

@@ -1,12 +1,16 @@
+from sys import argv
+
 from pathlib import Path
 from enum import Enum, auto
 
 from player import Player
 
-# from board import Board
+from board import Board, Printer, Style
 from colors import Colors
 from vectors import Vector
 from pieces import Piece, PieceType, ALL_BASE_VECTORS
+
+import colorama
 
 
 class State(Enum):
@@ -19,14 +23,22 @@ class State(Enum):
 
 
 class Game:
-    def __init__(self, p_white: Player, p_black: Player, board: "Board"):
+    def __init__(
+        self,
+        p_white: Player,
+        p_black: Player,
+        board: "Board",
+        printer: Printer,
+        mvfinder: "MoveFinder",
+    ):
         self.p_white = p_white
         self.p_black = p_black
         self.board = board
-        self.mfinder = MoveFinder(self.board)
+        self.printer = printer
+        self.mvfinder = mvfinder
         self.layout_handler = LayoutHandler()
 
-    def run(self):
+    def start(self):
         # setup vars before game begins
         turn_player = self.p_white
         turn_counter = 1
@@ -231,9 +243,6 @@ class MoveHistory:
     def __init__(self):
         self.mh = []
 
-    def add_move(self):
-        raise NotImplementedError
-
 
 def get_base_vectors(piece: Piece):
     bvs = ALL_BASE_VECTORS[piece.type]
@@ -245,56 +254,39 @@ def get_base_vectors(piece: Piece):
 
 
 class MoveFinder:
-    def __init__(self, board: "Board"):
-        self.board = board
-        self.move_graphs = {}
+    def __init__(self, b: Board) -> None:
+        self.mv_graphs = {}
+        self.b = b
 
     def is_in_bounds(self, pos: Vector) -> bool:
-        return 0 <= pos.x <= 7 and 0 <= pos.y <= 7
-
-    def print_graph(self, piece):
-        print(f"\t\t{piece}")
-        for k, v in self.move_graphs[piece].items():
-            print(f"\t\t\t{k}, {v}")
+        return 0 <= pos.x <= self.b.size and 0 <= pos.y <= self.b.size
 
     # GRAPH CREATION BLOCK -----------------------------------------------------------
-    def create_move_graphs(self):
-        # creates graphs with moves that are valid on an empty board
-        for y, line in enumerate(self.board.grid):
+    def find_pseudo_positions(self):
+        for y, line in enumerate(self.b.grid):
             for x, square in enumerate(line):
                 piece = square.occ
                 if piece is None:
                     continue
 
                 root = Vector(x, y)  # current pos of piece
-                graph = {root: []}
-                self.move_graphs.setdefault(piece, graph)
+
+                mv_graph = {root: []}
+                self.mv_graphs.setdefault(piece, mv_graph)
                 bvs = get_base_vectors(piece)
 
                 if piece.type in (PieceType.QUEEN, PieceType.BISHOP, PieceType.ROOK):
-                    self.find_adj_nodes_QBR(graph, root, bvs)
-                    # TODO
-                    print("PRIOR-----------------------------------")
-                    self.print_graph(piece)
+                    self.find_adj_nodes_QBR(mv_graph, root, bvs)
 
-                    self.filter_out_blocked_positions_QBRN(graph, root, piece)
-                    print("AFTER-----------------------------------")
-                    self.print_graph(piece)
-
-                elif piece.type == PieceType.KNIGHT:
-                    self.find_adj_nodes_KN(piece, graph, root, bvs)
-                    print("PRIOR-----------------------------------")
-                    self.print_graph(piece)
-
-                    self.filter_out_blocked_positions_QBRN(graph, root, piece)
-                    print("AFTER-----------------------------------")
-                    self.print_graph(piece)
+                elif piece.type in (PieceType.KNIGHT, PieceType.KING):
+                    self.find_adj_nodes_KN(mv_graph, root, bvs)
 
                 elif piece.type == PieceType.KING:
-                    self.find_adj_nodes_KN(piece, graph, root, bvs)
+                    self.find_adj_nodes_KN(mv_graph, root, bvs)
+                    #TODO add castling 
 
                 elif piece.type == PieceType.PAWN:
-                    self.find_adj_nodes_P(piece, graph, root, bvs)
+                    self.find_adj_nodes_P(mv_graph, root, bvs)
 
     def find_adj_nodes_QBR(self, graph, root: Vector, base_vectors):
         for bv in base_vectors:
@@ -303,56 +295,43 @@ class MoveFinder:
             while self.is_in_bounds(new_pos):
                 # found existing Node
                 graph.setdefault(new_pos, [])
-                # add to adj list
                 graph[current_pos].append(new_pos)
                 current_pos = new_pos
                 new_pos = current_pos + bv
 
-    def find_adj_nodes_KN(self, p: Piece, graph, root: Vector, base_vectors):
+    def find_adj_nodes_KN(self, graph, root: Vector, base_vectors):
         for bv in base_vectors:
             new_pos = root + bv
-            if self.is_in_bounds(new_pos):
-                # found existing Node
-                graph.setdefault(new_pos, [])
-                # add to adj list
-                graph[root].append(new_pos)
+            if not self.is_in_bounds(new_pos):
+                break
+            # found existing Node 
+            graph.setdefault(new_pos, [])
+            graph[root].append(new_pos)
 
-        # add_castling
-        if p.type == PieceType.KING and p.unmoved:
-            castle_right = root + Vector(2, 0)
-            graph.setdefault(castle_right, [])
-            graph[root].append(castle_right)
-
-            castle_left = root - Vector(2, 0)
-            graph.setdefault(castle_left, [])
-            graph[root].append(castle_left)
-
-    def find_adj_nodes_P(self, p: Piece, graph, root: Vector, base_vectors):
-        # capture vectors
+    def find_adj_nodes_P(self, graph, root: Vector, base_vectors):
+        # capture vectors also used for en passant
         for bv in base_vectors[1:]:
             new_pos = root + bv
             if self.is_in_bounds(new_pos):
                 # found new Node
                 graph.setdefault(new_pos, [])
-                # add to adj list
                 graph[root].append(new_pos)
 
         # forward move vectors
         current_pos = root
-        for i in range(1, p.unmoved + 2):  # range 1 or 2
+        for _ in range(2):
             new_pos = current_pos + base_vectors[0]
             if not self.is_in_bounds(new_pos):
                 break
 
             # found new Node
             graph.setdefault(new_pos, [])
-            # add to adj list
             graph[current_pos].append(new_pos)
             current_pos = new_pos
 
     # END GRAPH CREATION BLOCK -----------------------------------------------------------
 
-    def is_node_in(self, graph, root: Vector, test_node: Vector) -> bool:
+    def is_node_in_graph(self, g, root: Vector, test_node: Vector) -> bool:
         queue = [root]
         visited = [root]
 
@@ -362,7 +341,7 @@ class MoveFinder:
             if node == test_node:
                 return True
 
-            for adjN in graph[node]:
+            for adjN in g[node]:
                 if adjN not in visited:
                     visited.append(adjN)
                     queue.append(adjN)
@@ -416,3 +395,40 @@ class MoveFinder:
 
             # stays 'root' if the 'if-ALLY' hits continue
             prior_node = node
+
+
+def main():
+    style = Style.CHAR
+    color_mode = False
+
+    if len(argv) > 1:
+        if argv[1] == "-g":
+            style = Style.GLYPH
+        if argv[1] == "-c":
+            color_mode = True
+
+        if argv[1] == ("-h"):
+            print(
+                """
+            Usage: python game.py [-g-h][-c]
+                -g          Use Unicode Symbols (Glyphs) instead of ASCII 
+                -c          Enable color mode 
+                -h   Print this Help message"""
+            )
+            return
+
+    p1 = Player("Vendrick", Colors.WHITE)
+    p2 = Player("Gwyn", Colors.BLACK)
+
+    board = Board()
+    printer = Printer(style=style, color_mode=color_mode)
+
+    game = Game(p1, p2, board, printer)
+
+    game.layout_handler.load_layout()
+    game.layout_handler.apply_layout(game.board)
+    game.run()
+
+
+if __name__ == "__main__":
+    main()
